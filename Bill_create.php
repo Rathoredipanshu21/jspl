@@ -34,10 +34,26 @@ function getDbConnection() {
 -- =============================================================================
 -- REQUIRED SQL SETUP: Run this in your database (e.g., via phpMyAdmin)
 -- =============================================================================
-CREATE DATABASE IF NOT EXISTS `billing_system`;
-USE `billing_system`;
+CREATE DATABASE IF NOT EXISTS `jspl`;
+USE `jspl`;
 
-CREATE TABLE IF NOT EXISTS `parties` ( `id` INT AUTO_INCREMENT PRIMARY KEY, `business_name` VARCHAR(255) NOT NULL, `owner_name` VARCHAR(255) DEFAULT NULL, `address` TEXT, `gst_uin` VARCHAR(15) DEFAULT NULL, `state` VARCHAR(100) DEFAULT NULL, `pincode` VARCHAR(10) DEFAULT NULL, `contact_number` VARCHAR(20) DEFAULT NULL, `email` VARCHAR(255) DEFAULT NULL, `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- NOTE: Added `unique_id` column as requested. Make sure your table has it.
+-- ALTER TABLE `parties` ADD `unique_id` VARCHAR(50) NULL UNIQUE AFTER `id`;
+CREATE TABLE IF NOT EXISTS `parties` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `unique_id` VARCHAR(50) NULL UNIQUE,
+  `business_name` VARCHAR(255) NOT NULL,
+  `owner_name` VARCHAR(255) DEFAULT NULL,
+  `address` TEXT,
+  `gst_uin` VARCHAR(15) DEFAULT NULL,
+  `state` VARCHAR(100) DEFAULT NULL,
+  `pincode` VARCHAR(10) DEFAULT NULL,
+  `contact_number` VARCHAR(20) DEFAULT NULL,
+  `email` VARCHAR(255) DEFAULT NULL,
+  `role` VARCHAR(50) DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS `goods` ( `id` INT AUTO_INCREMENT PRIMARY KEY, `product_name` VARCHAR(255) NOT NULL, `description` TEXT, `hsn_sac` VARCHAR(20) NOT NULL, `quantity` DECIMAL(10, 2) DEFAULT 0.00, `unit` VARCHAR(20) NOT NULL, `rate_per_gram` DECIMAL(15, 2) NOT NULL, `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS `invoices` ( `id` INT AUTO_INCREMENT PRIMARY KEY, `invoice_no` VARCHAR(50) NOT NULL, `invoice_date` DATE NOT NULL, `irn_no` VARCHAR(100) DEFAULT NULL, `ack_no` VARCHAR(100) DEFAULT NULL, `ack_date` DATE DEFAULT NULL, `consignee_id` INT NOT NULL, `biller_id` INT NOT NULL, `delivery_note` VARCHAR(100) DEFAULT NULL, `buyers_order_no` VARCHAR(50) DEFAULT NULL, `buyers_order_date` DATE DEFAULT NULL, `dispatch_through` VARCHAR(100) DEFAULT NULL, `bill_of_lading_no` VARCHAR(50) DEFAULT NULL, `bill_of_lading_date` DATE DEFAULT NULL, `motor_vehicle_no` VARCHAR(50) DEFAULT NULL, `sub_total` DECIMAL(15, 2) NOT NULL, `cgst_rate` DECIMAL(5, 2) NOT NULL DEFAULT 9.00, `cgst_amount` DECIMAL(15, 2) NOT NULL, `sgst_rate` DECIMAL(5, 2) NOT NULL DEFAULT 9.00, `sgst_amount` DECIMAL(15, 2) NOT NULL, `transit_insurance_rate` DECIMAL(8, 5) NOT NULL DEFAULT 0.02500, `transit_insurance_amount` DECIMAL(15, 2) NOT NULL, `grand_total` DECIMAL(15, 2) NOT NULL, `amount_in_words` VARCHAR(255) NOT NULL, `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (`consignee_id`) REFERENCES `parties`(`id`), FOREIGN KEY (`biller_id`) REFERENCES `parties`(`id`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS `invoice_items` ( `id` INT AUTO_INCREMENT PRIMARY KEY, `invoice_id` INT NOT NULL, `product_id` INT NOT NULL, `product_name` VARCHAR(255) NOT NULL, `hsn_sac` VARCHAR(20) NOT NULL, `quantity` DECIMAL(10, 3) NOT NULL, `unit` VARCHAR(20) NOT NULL, `rate` DECIMAL(15, 2) NOT NULL, `amount` DECIMAL(15, 2) NOT NULL, FOREIGN KEY (`invoice_id`) REFERENCES `invoices`(`id`) ON DELETE CASCADE, FOREIGN KEY (`product_id`) REFERENCES `goods`(`id`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -82,6 +98,7 @@ if ($action === 'ajax') {
 
     if ($request_type === 'get_party' && isset($_GET['id'])) {
         $party_id = intval($_GET['id']);
+        // The user provided a broader query, but for this specific function, these fields are sufficient.
         $stmt = $conn->prepare("SELECT `business_name`, `owner_name`, `address`, `gst_uin`, `state`, `pincode`, `contact_number`, `email` FROM `parties` WHERE id = ?");
         $stmt->bind_param("i", $party_id);
         $stmt->execute();
@@ -131,7 +148,7 @@ if ($action === 'save_invoice' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $sgst_amount = $sub_total * 0.09;
         $transit_insurance_amount = $sub_total * 0.00025;
         $grand_total = $sub_total + $cgst_amount + $sgst_amount + $transit_insurance_amount;
-        $amount_in_words = "INR " . numberToWords($grand_total) . " Only";
+        $amount_in_words = "INR " . numberToWords(round($grand_total, 2)) . " Only";
 
         $stmt_invoice = $conn->prepare(
             "INSERT INTO invoices (invoice_no, invoice_date, irn_no, ack_no, ack_date, consignee_id, biller_id, delivery_note, buyers_order_no, buyers_order_date, dispatch_through, bill_of_lading_no, bill_of_lading_date, motor_vehicle_no, sub_total, cgst_amount, sgst_amount, transit_insurance_amount, grand_total, amount_in_words) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -189,7 +206,7 @@ if ($action === 'save_invoice' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     
     <style>
         body { background-color: #f0f2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .invoice-container, .invoice-box { background-color: #ffffff; padding: 2.5rem; margin-top: 2rem; margin-bottom: 2rem; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        .invoice-container, .invoice-box-container { background-color: #ffffff; padding: 2.5rem; margin-top: 2rem; margin-bottom: 2rem; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
         .invoice-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #dee2e6; padding-bottom: 1rem; margin-bottom: 2rem; }
         .invoice-header .logo { max-height: 80px; }
         .invoice-header h1 { font-weight: 700; color: #343a40; margin: 0; }
@@ -201,17 +218,21 @@ if ($action === 'save_invoice' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         .totals-section { background-color: #f8f9fa; padding: 1.5rem; border-radius: 10px; }
         .grand-total { font-size: 1.5rem; color: #0d6efd; }
         .party-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+        
         /* Print-specific styles */
         .invoice-box { max-width: 800px; margin: auto; padding: 30px; border: 1px solid #eee; font-size: 14px; line-height: 20px; color: #555; }
         .invoice-box table { width: 100%; line-height: inherit; text-align: left; border-collapse: collapse; }
         .invoice-box table td { padding: 5px; vertical-align: top; }
         .invoice-box table tr.heading td { background: #eee; border-bottom: 1px solid #ddd; font-weight: bold; }
         .invoice-box table tr.item td { border-bottom: 1px solid #eee; }
+        .invoice-footer { font-size: 12px; }
         .no-print { text-align: center; margin-top: 20px; }
+        
         @media print {
-            body { background-color: #fff; }
-            .no-print, .invoice-container:not(.invoice-box) { display: none; }
-            .invoice-box { display: block !important; box-shadow: none; border: none; margin: 0; padding: 0; max-width: 100%; }
+            body { background-color: #fff; -webkit-print-color-adjust: exact; }
+            .no-print, .invoice-container { display: none; }
+            .invoice-box-container { display: block !important; box-shadow: none; border: none; margin: 0; padding: 0; max-width: 100%; border-radius: 0; }
+            .invoice-box { box-shadow: none; border: none; margin: 0; padding: 0; max-width: 100%; }
         }
     </style>
 </head>
@@ -240,40 +261,77 @@ if ($action === 'save_invoice' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $conn->close();
 
-
         if (!$invoice) die('Invoice not found.');
         ?>
         <?php if(isset($_GET['status']) && $_GET['status'] == 'success'): ?>
             <div class="alert alert-success mt-4 no-print">Invoice saved successfully!</div>
         <?php endif; ?>
 
-        <div class="invoice-box">
-            <table cellpadding="0" cellspacing="0">
-                <tr class="top"><td colspan="4"><table><tr>
-                    <td><img src="Assets/logo.jpg" style="max-width: 150px;" alt="Logo"></td>
-                    <td class="text-end"><strong>Tax Invoice</strong><br>(Original for Recipient)</td>
-                </tr></table></td></tr>
-                <tr><td colspan="2"><strong>IRN:</strong> <?= htmlspecialchars($invoice['irn_no']) ?></td><td colspan="2" class="text-end"><img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=<?= urlencode('Invoice No: '.$invoice['invoice_no']) ?>" alt="QR Code"></td></tr>
-                <tr class="information"><td colspan="2"><strong>Sold By: JSPL STEEL</strong><br>Third Floor, Plot No-747, Khata No-11,<br>LAL Bangla, Gosaidih, Govindpur,<br>Dhanbad, Jharkhand - 828109</td><td colspan="2" class="text-end"><strong>Invoice No.:</strong> <?= htmlspecialchars($invoice['invoice_no']) ?><br><strong>Dated:</strong> <?= date("d-M-Y", strtotime($invoice['invoice_date'])) ?></td></tr>
-                <tr class="heading"><td colspan="2">Consignee (Ship To)</td><td colspan="2">Buyer (Bill To)</td></tr>
-                <tr class="details"><td colspan="2"><strong><?= htmlspecialchars($invoice['consignee_name']) ?></strong><br><?= nl2br(htmlspecialchars($invoice['consignee_address'])) ?><br><strong>State:</strong> <?= htmlspecialchars($invoice['consignee_state']) ?>, <strong>PIN:</strong> <?= htmlspecialchars($invoice['consignee_pincode']) ?><br><strong>GSTIN/UIN:</strong> <?= htmlspecialchars($invoice['consignee_gst']) ?></td><td colspan="2"><strong><?= htmlspecialchars($invoice['biller_name']) ?></strong><br><?= nl2br(htmlspecialchars($invoice['biller_address'])) ?><br><strong>State:</strong> <?= htmlspecialchars($invoice['biller_state']) ?>, <strong>PIN:</strong> <?= htmlspecialchars($invoice['biller_pincode']) ?><br><strong>GSTIN/UIN:</strong> <?= htmlspecialchars($invoice['biller_gst']) ?></td></tr>
-                <tr class="heading"><td>Description of Goods</td><td>HSN/SAC</td><td class="text-end">Qty</td><td class="text-end">Amount</td></tr>
-                <?php $total_qty = 0; while ($item = $items_result->fetch_assoc()): $total_qty += $item['quantity']; ?>
-                <tr class="item"><td><?= htmlspecialchars($item['product_name']) ?></td><td><?= htmlspecialchars($item['hsn_sac']) ?></td><td class="text-end"><?= rtrim(rtrim(number_format($item['quantity'], 3), '0'), '.') ?> <?= $item['unit'] ?></td><td class="text-end"><?= number_format($item['amount'], 2) ?></td></tr>
-                <?php endwhile; ?>
-                <tr style="font-weight:bold;"><td colspan="2" class="text-end">Total</td><td class="text-end"><?= rtrim(rtrim(number_format($total_qty, 3), '0'), '.') ?></td><td class="text-end"><?= number_format($invoice['sub_total'], 2) ?></td></tr>
-                <tr><td colspan="2" rowspan="4" style="vertical-align: bottom;"><strong>Amount (in words):</strong><br><?= htmlspecialchars($invoice['amount_in_words']) ?></td><td>CGST @9%</td><td class="text-end"><?= number_format($invoice['cgst_amount'], 2) ?></td></tr>
-                <tr><td>SGST @9%</td><td class="text-end"><?= number_format($invoice['sgst_amount'], 2) ?></td></tr>
-                <tr><td>Transit Insurance @0.025%</td><td class="text-end"><?= number_format($invoice['transit_insurance_amount'], 2) ?></td></tr>
-                <tr style="font-weight:bold; border-top:2px solid #eee;"><td>Grand Total</td><td class="text-end"><?= number_format($invoice['grand_total'], 2) ?></td></tr>
-            </table>
+        <div class="invoice-box-container">
+            <div class="invoice-box">
+                <table cellpadding="0" cellspacing="0">
+                    <tr class="top"><td colspan="4"><table><tr>
+                        <td><img src="Assets/logo.jpg" style="max-width: 150px;" alt="Logo"></td>
+                        <td class="text-end"><strong>Tax Invoice</strong><br>(Original for Recipient)</td>
+                    </tr></table></td></tr>
+                    <tr><td colspan="2"><strong>IRN:</strong> <?= htmlspecialchars($invoice['irn_no']) ?></td><td colspan="2" class="text-end"><img src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=<?= urlencode('Invoice No: '.$invoice['invoice_no']) ?>" alt="QR Code"></td></tr>
+                    <tr class="information"><td colspan="2"><strong>Sold By: JSPL STEEL</strong><br>Third Floor, Plot No-747, Khata No-11,<br>LAL Bangla, Gosaidih, Govindpur,<br>Dhanbad, Jharkhand - 828109</td><td colspan="2" class="text-end"><strong>Invoice No.:</strong> <?= htmlspecialchars($invoice['invoice_no']) ?><br><strong>Dated:</strong> <?= date("d-M-Y", strtotime($invoice['invoice_date'])) ?></td></tr>
+                    <tr class="heading"><td colspan="2">Consignee (Ship To)</td><td colspan="2">Buyer (Bill To)</td></tr>
+                    <tr class="details"><td colspan="2"><strong><?= htmlspecialchars($invoice['consignee_name']) ?></strong><br><?= nl2br(htmlspecialchars($invoice['consignee_address'])) ?><br><strong>State:</strong> <?= htmlspecialchars($invoice['consignee_state']) ?>, <strong>PIN:</strong> <?= htmlspecialchars($invoice['consignee_pincode']) ?><br><strong>GSTIN/UIN:</strong> <?= htmlspecialchars($invoice['consignee_gst']) ?></td><td colspan="2"><strong><?= htmlspecialchars($invoice['biller_name']) ?></strong><br><?= nl2br(htmlspecialchars($invoice['biller_address'])) ?><br><strong>State:</strong> <?= htmlspecialchars($invoice['biller_state']) ?>, <strong>PIN:</strong> <?= htmlspecialchars($invoice['biller_pincode']) ?><br><strong>GSTIN/UIN:</strong> <?= htmlspecialchars($invoice['biller_gst']) ?></td></tr>
+                    <tr class="heading"><td>Description of Goods</td><td>HSN/SAC</td><td class="text-end">Qty</td><td class="text-end">Amount</td></tr>
+                    <?php $total_qty = 0; while ($item = $items_result->fetch_assoc()): $total_qty += $item['quantity']; ?>
+                    <tr class="item"><td><?= htmlspecialchars($item['product_name']) ?></td><td><?= htmlspecialchars($item['hsn_sac']) ?></td><td class="text-end"><?= rtrim(rtrim(number_format($item['quantity'], 3), '0'), '.') ?> <?= $item['unit'] ?></td><td class="text-end"><?= number_format($item['amount'], 2) ?></td></tr>
+                    <?php endwhile; ?>
+                    <tr style="font-weight:bold;"><td colspan="2" class="text-end">Total</td><td class="text-end"><?= rtrim(rtrim(number_format($total_qty, 3), '0'), '.') ?></td><td class="text-end"><?= number_format($invoice['sub_total'], 2) ?></td></tr>
+                    <tr><td colspan="2" rowspan="4" style="vertical-align: bottom;"><strong>Amount (in words):</strong><br><?= htmlspecialchars($invoice['amount_in_words']) ?></td><td>CGST @9%</td><td class="text-end"><?= number_format($invoice['cgst_amount'], 2) ?></td></tr>
+                    <tr><td>SGST @9%</td><td class="text-end"><?= number_format($invoice['sgst_amount'], 2) ?></td></tr>
+                    <tr><td>Transit Insurance @0.025%</td><td class="text-end"><?= number_format($invoice['transit_insurance_amount'], 2) ?></td></tr>
+                    <tr style="font-weight:bold; border-top:2px solid #eee;"><td>Grand Total</td><td class="text-end"><?= number_format($invoice['grand_total'], 2) ?></td></tr>
+                </table>
+                
+                <!-- NEW FOOTER SECTION -->
+                <div class="invoice-footer" style="margin-top: 30px; padding-top: 15px; border-top: 2px solid #eee;">
+                    <table style="width: 100%;">
+                        <tbody>
+                            <tr>
+                                <td style="width: 60%; vertical-align: top;">
+                                    <strong>BANK DETAIL JSPL STEEL</strong><br>
+                                    A/C NAME: JSPL STEEL<br>
+                                    A/C NO.: 50200113154873<br>
+                                    IFSC: HDFC0008981<br>
+                                    BANK: HDFC BANK LTD<br>
+                                    BRANCH: DHAIYA<br><br>
+                                    <strong>Declaration:</strong><br>
+                                    <small>We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</small><br>
+                                    <strong>Terms of Delivery:</strong> Ex factory
+                                </td>
+                                <td style="width: 40%; text-align: right; vertical-align: top;">
+                                    For <strong>JSPL STEEL</strong>
+                                    <br><br><br><br>
+                                    <img src="Assets/sign.png" style="height: 40px; display: block; margin-left: auto; margin-right: 20px;" alt="Signature"><br>
+                                    (Abhishek kumar)<br>
+                                    Authorised Signatory
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2" style="text-align: center; padding-top: 20px; border-top: 1px solid #ddd; margin-top: 20px;">
+                                    <small>This is a computer generated invoice.</small>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- END NEW FOOTER SECTION -->
+
+            </div>
         </div>
         <div class="no-print"><button onclick="window.print()" class="btn btn-success"><i class="fas fa-print"></i> Print Invoice</button> <a href="?" class="btn btn-primary"><i class="fas fa-plus"></i> Create New Invoice</a></div>
 
     <?php else: ?>
         <?php
         $conn = getDbConnection();
-        $parties_result = $conn->query("SELECT `id`, `business_name` FROM `parties` ORDER BY `business_name` ASC");
+        // CHANGE 1: Fetched `unique_id` along with other details.
+        $parties_result = $conn->query("SELECT `id`, `unique_id`, `business_name` FROM `parties` ORDER BY `business_name` ASC");
         ?>
         <form action="?action=save_invoice" method="post" id="invoice-form">
             <div class="invoice-container">
@@ -300,7 +358,7 @@ if ($action === 'save_invoice' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="row border-top border-bottom py-3 mb-4">
                     <div class="col-md-6 border-end">
                         <h5 class="section-title"><i class="fas fa-truck me-2"></i>Consignee (Ship To)</h5>
-                        <div class="form-group mb-2"><label for="consignee_id">Select Party</label><select class="form-select" id="consignee_id" name="consignee_id" required><option value="">-- Choose Party --</option><?php while($party = $parties_result->fetch_assoc()): ?><option value="<?= $party['id'] ?>"><?= htmlspecialchars($party['business_name']) ?></option><?php endwhile; ?></select></div>
+                        <div class="form-group mb-2"><label for="consignee_id">Select Party</label><select class="form-select" id="consignee_id" name="consignee_id" required><option value="">-- Choose Party --</option><?php while($party = $parties_result->fetch_assoc()): ?><option value="<?= $party['id'] ?>"><?= htmlspecialchars($party['business_name']) . ' (' . htmlspecialchars($party['unique_id']) . ')' ?></option><?php endwhile; ?></select></div>
                         <input type="text" class="form-control mb-1" id="consignee_business_name" placeholder="Business Name" readonly>
                         <textarea class="form-control mb-1" id="consignee_address" placeholder="Address" readonly rows="2"></textarea>
                         <div class="party-details-grid"><input type="text" class="form-control" id="consignee_gst" placeholder="GST/UIN" readonly><input type="text" class="form-control" id="consignee_state" placeholder="State" readonly></div>
@@ -308,7 +366,7 @@ if ($action === 'save_invoice' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="col-md-6">
                         <h5 class="section-title"><i class="fas fa-file-invoice-dollar me-2"></i>Biller (Bill To)</h5>
                         <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="same_as_consignee"><label class="form-check-label" for="same_as_consignee">Same as Consignee</label></div>
-                        <div class="form-group mb-2"><select class="form-select" id="biller_id" name="biller_id" required><option value="">-- Choose Party --</option><?php $parties_result->data_seek(0); while($party = $parties_result->fetch_assoc()): ?><option value="<?= $party['id'] ?>"><?= htmlspecialchars($party['business_name']) ?></option><?php endwhile; ?></select></div>
+                        <div class="form-group mb-2"><select class="form-select" id="biller_id" name="biller_id" required><option value="">-- Choose Party --</option><?php $parties_result->data_seek(0); while($party = $parties_result->fetch_assoc()): ?><option value="<?= $party['id'] ?>"><?= htmlspecialchars($party['business_name']) . ' (' . htmlspecialchars($party['unique_id']) . ')' ?></option><?php endwhile; ?></select></div>
                         <input type="text" class="form-control mb-1" id="biller_business_name" placeholder="Business Name" readonly>
                         <textarea class="form-control mb-1" id="biller_address" placeholder="Address" readonly rows="2"></textarea>
                         <div class="party-details-grid"><input type="text" class="form-control" id="biller_gst" placeholder="GST/UIN" readonly><input type="text" class="form-control" id="biller_state" placeholder="State" readonly></div>
@@ -362,15 +420,11 @@ $(document).ready(function() {
 
     $('#same_as_consignee').change(function() {
         if ($(this).is(':checked')) {
-            // Set the value and trigger change. Crucially, DO NOT disable the dropdown.
-            // Disabling a field prevents it from being submitted with the form.
             $('#biller_id').val($('#consignee_id').val()).trigger('change');
-            // Instead of disabling, we can visually indicate it's locked.
-            $('#biller_id').css({'pointer-events': 'none', 'background-color': '#e9ecef'});
+            $('#biller_id').prop('disabled', true).css({'pointer-events': 'none', 'background-color': '#e9ecef'});
         } else {
-            // Re-enable interaction and clear the value if unchecked.
             $('#biller_id').val('').trigger('change');
-            $('#biller_id').css({'pointer-events': 'auto', 'background-color': '#fff'});
+            $('#biller_id').prop('disabled', false).css({'pointer-events': 'auto', 'background-color': '#fff'});
         }
     });
 
@@ -439,11 +493,43 @@ $(document).ready(function() {
             const unit = $(this).find('input[name*="[unit]"]').val();
             const amount = parseFloat($(this).find('.amount').val() || 0).toFixed(2);
             totalQty += qty;
-            itemsHtml += `<tr class="item"><td>${name}</td><td>${hsn}</td><td class="text-end">${qty} ${unit}</td><td class="text-end">${amount}</td></tr>`;
+            itemsHtml += `<tr class="item"><td>${name}</td><td>${hsn}</td><td class="text-end">${qty.toFixed(3)} ${unit}</td><td class="text-end">${amount}</td></tr>`;
         });
 
         const subTotal = parseFloat($('#sub-total').text()).toFixed(2);
         const grandTotal = parseFloat($('#grand-total').text()).toFixed(2);
+
+        const footerHtml = `
+            <div class="invoice-footer" style="margin-top: 30px; padding-top: 15px; border-top: 2px solid #eee; font-size:12px;">
+                <table style="width: 100%;">
+                    <tbody>
+                        <tr>
+                            <td style="width: 60%; vertical-align: top;">
+                                <strong>BANK DETAIL JSPL STEEL</strong><br>
+                                A/C NAME: JSPL STEEL<br>
+                                A/C NO.: 50200113154873<br>
+                                IFSC: HDFC0008981<br>
+                                BANK: HDFC BANK LTD<br>
+                                BRANCH: DHAIYA<br><br>
+                                <strong>Declaration:</strong><br>
+                                <small>We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</small><br>
+                                <strong>Terms of Delivery:</strong> Ex factory
+                            </td>
+                            <td style="width: 40%; text-align: right; vertical-align: top;">
+                                For <strong>JSPL STEEL</strong>
+                                <br><br><br><br><br>
+                                (Abhishek kumar)<br>
+                                Authorised Signatory
+                            </td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="text-align: center; padding-top: 20px; border-top: 1px solid #ddd; margin-top: 20px;">
+                                <small>This is a computer generated invoice.</small>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>`;
 
         const previewHtml = `
             <html><head><title>Invoice Preview</title>
@@ -455,19 +541,23 @@ $(document).ready(function() {
                 .invoice-box table tr.item td{border-bottom:1px solid #eee;} .text-end{text-align:right!important;}
             </style></head><body>
             <div class="invoice-box">
-                <h1 class="text-center mb-4">INVOICE PREVIEW</h1>
-                <table>
-                    <tr><td colspan="2"><strong>Sold By: JSPL STEEL</strong><br>Dhanbad, Jharkhand</td><td colspan="2" class="text-end"><strong>Invoice No:</strong> ${$('#invoice_no').val()}<br><strong>Dated:</strong> ${$('#invoice_date').val()}</td></tr>
+                <table cellpadding="0" cellspacing="0">
+                    <tr class="top"><td colspan="4"><table><tr>
+                        <td><img src="Assets/logo.jpg" style="max-width: 150px;" alt="Logo"></td>
+                        <td class="text-end"><strong>Tax Invoice</strong><br>(Original for Recipient)</td>
+                    </tr></table></td></tr>
+                    <tr class="information"><td colspan="2"><strong>Sold By: JSPL STEEL</strong><br>Dhanbad, Jharkhand</td><td colspan="2" class="text-end"><strong>Invoice No:</strong> ${$('#invoice_no').val()}<br><strong>Dated:</strong> ${$('#invoice_date').val()}</td></tr>
                     <tr class="heading"><td colspan="2">Consignee (Ship To)</td><td colspan="2">Buyer (Bill To)</td></tr>
                     <tr><td colspan="2"><strong>${$('#consignee_business_name').val()}</strong><br>${$('#consignee_address').val().replace(/\n/g, '<br>')}<br><strong>GST:</strong> ${$('#consignee_gst').val()}</td><td colspan="2"><strong>${$('#biller_business_name').val()}</strong><br>${$('#biller_address').val().replace(/\n/g, '<br>')}<br><strong>GST:</strong> ${$('#biller_gst').val()}</td></tr>
                     <tr class="heading"><td>Description</td><td>HSN/SAC</td><td class="text-end">Qty</td><td class="text-end">Amount</td></tr>
                     ${itemsHtml}
-                    <tr style="font-weight:bold;"><td colspan="2" class="text-end">Total</td><td class="text-end">${totalQty}</td><td class="text-end">${subTotal}</td></tr>
-                    <tr><td colspan="2" rowspan="4"></td><td>CGST @9%</td><td class="text-end">${$('#cgst-total').text()}</td></tr>
+                    <tr style="font-weight:bold;"><td colspan="2" class="text-end">Total</td><td class="text-end">${totalQty.toFixed(3)}</td><td class="text-end">${subTotal}</td></tr>
+                    <tr><td colspan="2" rowspan="4" style="vertical-align: bottom;"><strong>Amount (in words):</strong><br>Will be generated on save...</td><td>CGST @9%</td><td class="text-end">${$('#cgst-total').text()}</td></tr>
                     <tr><td>SGST @9%</td><td class="text-end">${$('#sgst-total').text()}</td></tr>
                     <tr><td>Transit Ins. @0.025%</td><td class="text-end">${$('#insurance-total').text()}</td></tr>
                     <tr style="font-weight:bold; border-top:2px solid #eee;"><td>Grand Total</td><td class="text-end">${grandTotal}</td></tr>
                 </table>
+                ${footerHtml}
             </div>
             </body></html>`;
 
