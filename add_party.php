@@ -1,11 +1,11 @@
 <?php
-// This single file handles the display, saving, and fetching of party data.
+// This single file handles the display, saving, fetching, updating, and deleting of party data.
 
 // Include the database configuration file.
 @include 'config/db.php';
 
 // --- ACTION HANDLER ---
-// This block handles AJAX requests for saving and fetching data.
+// This block handles AJAX requests for various CRUD operations.
 if (isset($conn)) {
     // Handle SAVE action
     if (isset($_POST['action']) && $_POST['action'] == 'save') {
@@ -21,41 +21,27 @@ if (isset($conn)) {
                 'Retailer'    => 'RETA',
                 'Wholesaler'  => 'WHOL'
             ];
-            $prefix = $prefix_map[$role] ?? 'PARTY'; // Default prefix
+            $prefix = $prefix_map[$role] ?? 'PARTY';
 
-            // Find the last ID for the given prefix to determine the next number
-            $id_stmt = $conn->prepare("SELECT MAX(unique_id) as last_id FROM parties WHERE unique_id LIKE ?");
-            if ($id_stmt === false) {
-                throw new Exception('Prepare failed for ID check: ' . $conn->error);
-            }
-            $like_prefix = $prefix . '%';
-            $id_stmt->bind_param("s", $like_prefix);
-            $id_stmt->execute();
-            $result = $id_stmt->get_result();
-            $row = $result->fetch_assoc();
-            $last_id = $row['last_id'];
-            $id_stmt->close();
-
-            $number = 1;
-            if ($last_id) {
-                // Extract the numeric part from the last ID and increment it
-                $number = (int)substr($last_id, strlen($prefix)) + 1;
-            }
-
-            // Format the new unique ID with 4-digit zero padding (e.g., DIST0001)
-            $unique_id = sprintf('%s%04d', $prefix, $number);
+            do {
+                $random_number = mt_rand(100000, 999999);
+                $unique_id = $prefix . $random_number;
+                $check_stmt = $conn->prepare("SELECT id FROM parties WHERE unique_id = ?");
+                $check_stmt->bind_param("s", $unique_id);
+                $check_stmt->execute();
+                $check_stmt->store_result();
+                $is_unique = ($check_stmt->num_rows === 0);
+                $check_stmt->close();
+            } while (!$is_unique);
             // --- End of Unique ID Generation ---
 
-            // Prepare the main INSERT statement
-            $stmt = $conn->prepare("INSERT INTO parties (unique_id, business_name, owner_name, address, gst_uin, state, contact_number, email, pincode, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $conn->prepare("INSERT INTO parties (unique_id, business_name, owner_name, address, gst_uin, state, contact_number, email, pincode, role, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             if ($stmt === false) {
                 throw new Exception('Database prepare statement failed: ' . $conn->error);
             }
 
-            // Bind parameters (s = string)
-            $stmt->bind_param("ssssssssss", $unique_id, $business_name, $owner_name, $address, $gst_uin, $state, $contact_number, $email, $pincode, $role);
+            $stmt->bind_param("sssssssssss", $unique_id, $business_name, $owner_name, $address, $gst_uin, $state, $contact_number, $email, $pincode, $role, $status);
 
-            // Sanitize and set parameters from POST data
             $business_name = htmlspecialchars(strip_tags($_POST['business_name']));
             $owner_name = htmlspecialchars(strip_tags($_POST['owner_name']));
             $address = htmlspecialchars(strip_tags($_POST['address']));
@@ -64,7 +50,7 @@ if (isset($conn)) {
             $contact_number = htmlspecialchars(strip_tags($_POST['contact_number']));
             $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
             $pincode = htmlspecialchars(strip_tags($_POST['pincode']));
-            // $role is already sanitized above
+            $status = 'approved';
 
             if ($stmt->execute()) {
                 $response['success'] = true;
@@ -80,10 +66,90 @@ if (isset($conn)) {
 
         $conn->close();
         echo json_encode($response);
-        exit(); // Stop script execution
+        exit();
     }
 
-    // Handle FETCH action
+    // Handle UPDATE action
+    if (isset($_POST['action']) && $_POST['action'] == 'update') {
+        header('Content-Type: application/json');
+        $response = ['success' => false, 'message' => 'An unknown error occurred.'];
+
+        try {
+            $party_id = intval($_POST['party_id']);
+            if ($party_id <= 0) {
+                throw new Exception('Invalid Party ID.');
+            }
+
+            $stmt = $conn->prepare("UPDATE parties SET business_name=?, owner_name=?, address=?, gst_uin=?, state=?, contact_number=?, email=?, pincode=?, role=? WHERE id=?");
+            if ($stmt === false) {
+                throw new Exception('Database prepare statement failed: ' . $conn->error);
+            }
+
+            $stmt->bind_param("sssssssssi", $business_name, $owner_name, $address, $gst_uin, $state, $contact_number, $email, $pincode, $role, $party_id);
+            
+            $business_name = htmlspecialchars(strip_tags($_POST['business_name']));
+            $owner_name = htmlspecialchars(strip_tags($_POST['owner_name']));
+            $address = htmlspecialchars(strip_tags($_POST['address']));
+            $gst_uin = htmlspecialchars(strip_tags($_POST['gst_uin']));
+            $state = htmlspecialchars(strip_tags($_POST['state']));
+            $contact_number = htmlspecialchars(strip_tags($_POST['contact_number']));
+            $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
+            $pincode = htmlspecialchars(strip_tags($_POST['pincode']));
+            $role = htmlspecialchars(strip_tags($_POST['role']));
+
+            if ($stmt->execute()) {
+                $response['success'] = true;
+                $response['message'] = 'Party details updated successfully.';
+            } else {
+                throw new Exception('Execute failed: ' . $stmt->error);
+            }
+            $stmt->close();
+
+        } catch (Exception $e) {
+            $response['message'] = $e->getMessage();
+        }
+
+        $conn->close();
+        echo json_encode($response);
+        exit();
+    }
+    
+    // Handle DELETE action
+    if (isset($_POST['action']) && $_POST['action'] == 'delete') {
+        header('Content-Type: application/json');
+        $response = ['success' => false, 'message' => 'An unknown error occurred.'];
+        
+        try {
+            $party_id = intval($_POST['id']);
+            if ($party_id <= 0) {
+                throw new Exception('Invalid Party ID.');
+            }
+            
+            $stmt = $conn->prepare("DELETE FROM parties WHERE id = ?");
+            if ($stmt === false) {
+                throw new Exception('Database prepare statement failed: ' . $conn->error);
+            }
+            
+            $stmt->bind_param("i", $party_id);
+            
+            if ($stmt->execute()) {
+                $response['success'] = true;
+                $response['message'] = 'Party deleted successfully.';
+            } else {
+                throw new Exception('Execute failed: ' . $stmt->error);
+            }
+            $stmt->close();
+            
+        } catch (Exception $e) {
+            $response['message'] = $e->getMessage();
+        }
+        
+        $conn->close();
+        echo json_encode($response);
+        exit();
+    }
+
+    // Handle FETCH (for table body)
     if (isset($_GET['action']) && $_GET['action'] == 'fetch') {
         $output = '';
         $sql = "SELECT id, unique_id, business_name, owner_name, address, gst_uin, state, contact_number, email, pincode, role, created_at FROM parties ORDER BY id DESC";
@@ -103,15 +169,42 @@ if (isset($conn)) {
                                     <span><i class='fas fa-phone'></i>" . htmlspecialchars($row["contact_number"]) . "</span>
                                     <span><i class='fas fa-envelope'></i>" . htmlspecialchars($row["email"]) . "</span>
                                 </div>
-                              </td>";
+                            </td>";
+                $output .= "<td>
+                                <div class='action-buttons'>
+                                    <button class='edit-btn' data-id='" . $row["id"] . "' title='Edit'><i class='fas fa-edit'></i></button>
+                                    <button class='delete-btn' data-id='" . $row["id"] . "' title='Delete'><i class='fas fa-trash'></i></button>
+                                </div>
+                            </td>";
                 $output .= "</tr>";
             }
         } else {
-            $output = "<tr><td colspan='7' style='text-align:center; padding: 20px;'>No parties found. Click 'Add New Party' to get started.</td></tr>";
+            $output = "<tr><td colspan='8' style='text-align:center; padding: 20px;'>No parties found. Click 'Add New Party' to get started.</td></tr>";
         }
         $conn->close();
         echo $output;
-        exit(); // Stop script execution
+        exit();
+    }
+    
+    // Handle FETCH_SINGLE (for edit modal)
+    if (isset($_GET['action']) && $_GET['action'] == 'fetch_single') {
+        header('Content-Type: application/json');
+        $party_id = intval($_GET['id']);
+        
+        $stmt = $conn->prepare("SELECT * FROM parties WHERE id = ?");
+        $stmt->bind_param("i", $party_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($result->num_rows > 0) {
+            $party_data = $result->fetch_assoc();
+            echo json_encode(['success' => true, 'data' => $party_data]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Party not found.']);
+        }
+        $stmt->close();
+        $conn->close();
+        exit();
     }
 }
 ?>
@@ -128,6 +221,7 @@ if (isset($conn)) {
         :root {
             --primary-color: #4a90e2;
             --secondary-color: #50e3c2;
+            --danger-color: #e74c3c;
             --background-color: #f4f7fa;
             --dark-grey: #333;
             --light-grey: #777;
@@ -202,7 +296,7 @@ if (isset($conn)) {
         th, td {
             padding: 15px;
             border-bottom: 1px solid #e0e0e0;
-            white-space: nowrap;
+            /* REMOVED 'white-space: nowrap;' to allow content to wrap and fit the screen */
         }
         th {
             background-color: #f8f9fa;
@@ -239,7 +333,25 @@ if (isset($conn)) {
             border-radius: 12px;
             font-size: 12px;
             font-weight: 500;
+            white-space: nowrap; /* Keep the badge itself on one line */
         }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .action-buttons button {
+            border: none;
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            color: white;
+            transition: background-color 0.2s;
+        }
+        .edit-btn { background-color: #f39c12; }
+        .edit-btn:hover { background-color: #e67e22; }
+        .delete-btn { background-color: var(--danger-color); }
+        .delete-btn:hover { background-color: #c0392b; }
         /* Modal Styles */
         .modal {
             display: none;
@@ -310,7 +422,7 @@ if (isset($conn)) {
             font-size: 14px;
             font-family: 'Poppins', sans-serif;
             transition: border-color 0.3s, box-shadow 0.3s;
-            background-color: #fff; /* Ensure select has a background */
+            background-color: #fff;
         }
         .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
             outline: none;
@@ -354,11 +466,13 @@ if (isset($conn)) {
                         <th>Address</th>
                         <th>GST / UIN</th>
                         <th>Contact</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="partyTableBody">
                     <?php
                         if (isset($conn)) {
+                            // The initial table load is handled here. Subsequent updates are via fetch().
                             $sql = "SELECT id, unique_id, business_name, owner_name, address, gst_uin, state, contact_number, email, pincode, role, created_at FROM parties ORDER BY id DESC";
                             $result = $conn->query($sql);
 
@@ -377,14 +491,20 @@ if (isset($conn)) {
                                                 <span><i class='fas fa-envelope'></i>" . htmlspecialchars($row["email"]) . "</span>
                                             </div>
                                           </td>";
+                                    echo "<td>
+                                            <div class='action-buttons'>
+                                                <button class='edit-btn' data-id='" . $row["id"] . "' title='Edit'><i class='fas fa-edit'></i></button>
+                                                <button class='delete-btn' data-id='" . $row["id"] . "' title='Delete'><i class='fas fa-trash'></i></button>
+                                            </div>
+                                          </td>";
                                     echo "</tr>";
                                 }
                             } else {
-                                echo "<tr><td colspan='7' style='text-align:center; padding: 20px;'>No parties found. Click 'Add New Party' to get started.</td></tr>";
+                                echo "<tr><td colspan='8' style='text-align:center; padding: 20px;'>No parties found. Click 'Add New Party' to get started.</td></tr>";
                             }
                             $conn->close();
                         } else {
-                             echo "<tr><td colspan='7' style='text-align:center; padding: 20px; color: red;'>Error: Could not connect to the database.</td></tr>";
+                             echo "<tr><td colspan='8' style='text-align:center; padding: 20px; color: red;'>Error: Could not connect to the database.</td></tr>";
                         }
                     ?>
                 </tbody>
@@ -392,14 +512,14 @@ if (isset($conn)) {
         </div>
     </div>
 
-    <!-- The Modal for adding a new party -->
     <div id="partyModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2><i class="fas fa-user-plus"></i> Add New Party Details</h2>
+                <h2 id="modalTitle"><i class="fas fa-user-plus"></i> Add New Party Details</h2>
                 <span class="close-btn">&times;</span>
             </div>
             <form id="addPartyForm" onsubmit="handleFormSubmit(event)">
+                <input type="hidden" id="party_id" name="party_id">
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="role">Party Role</label>
@@ -462,11 +582,19 @@ if (isset($conn)) {
         const btn = document.getElementById("addPartyBtn");
         const span = document.getElementsByClassName("close-btn")[0];
         const form = document.getElementById('addPartyForm');
+        const partyTableBody = document.getElementById('partyTableBody');
+        const modalTitle = document.getElementById('modalTitle');
+        const partyIdField = document.getElementById('party_id');
 
+        // Open modal for ADDING
         btn.onclick = () => {
             form.reset();
+            partyIdField.value = ''; // Ensure ID is cleared
+            modalTitle.innerHTML = '<i class="fas fa-user-plus"></i> Add New Party Details';
             modal.style.display = "flex";
         }
+        
+        // Close modal
         span.onclick = () => modal.style.display = "none";
         window.onclick = (event) => {
             if (event.target == modal) {
@@ -474,6 +602,7 @@ if (isset($conn)) {
             }
         }
 
+        // Handle form submission for both SAVE and UPDATE
         function handleFormSubmit(event) {
             event.preventDefault();
             const submitBtn = event.target.querySelector('.submit-btn');
@@ -481,7 +610,8 @@ if (isset($conn)) {
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
 
             const formData = new FormData(form);
-            formData.append('action', 'save');
+            const action = partyIdField.value ? 'update' : 'save';
+            formData.append('action', action);
 
             fetch(window.location.pathname, {
                 method: 'POST',
@@ -492,10 +622,8 @@ if (isset($conn)) {
                 if (data.success) {
                     modal.style.display = "none";
                     fetchParties();
-                    // Simple alert for success
-                    alert(data.message || 'Party added successfully!');
+                    alert(data.message);
                 } else {
-                    // Simple alert for error
                     alert('Error: ' + data.message);
                 }
             })
@@ -509,14 +637,92 @@ if (isset($conn)) {
             });
         }
 
+        // Fetch all parties and update table
         function fetchParties() {
             fetch(window.location.pathname + '?action=fetch')
             .then(response => response.text())
             .then(html => {
-                document.getElementById('partyTableBody').innerHTML = html;
+                partyTableBody.innerHTML = html;
                 AOS.refresh();
             })
             .catch(error => console.error('Failed to fetch parties:', error));
+        }
+        
+        // Event delegation for Edit and Delete buttons
+        partyTableBody.addEventListener('click', function(event) {
+            const editBtn = event.target.closest('.edit-btn');
+            const deleteBtn = event.target.closest('.delete-btn');
+
+            if (editBtn) {
+                const id = editBtn.dataset.id;
+                openEditModal(id);
+            }
+
+            if (deleteBtn) {
+                const id = deleteBtn.dataset.id;
+                deleteParty(id);
+            }
+        });
+        
+        // Open modal for EDITING
+        function openEditModal(id) {
+            fetch(`${window.location.pathname}?action=fetch_single&id=${id}`)
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    const party = result.data;
+                    // Populate form
+                    form.reset();
+                    partyIdField.value = party.id;
+                    document.getElementById('role').value = party.role;
+                    document.getElementById('business_name').value = party.business_name;
+                    document.getElementById('owner_name').value = party.owner_name;
+                    document.getElementById('contact_number').value = party.contact_number;
+                    document.getElementById('email').value = party.email;
+                    document.getElementById('gst_uin').value = party.gst_uin;
+                    document.getElementById('address').value = party.address;
+                    document.getElementById('state').value = party.state;
+                    document.getElementById('pincode').value = party.pincode;
+                    
+                    modalTitle.innerHTML = '<i class="fas fa-edit"></i> Edit Party Details';
+                    modal.style.display = 'flex';
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching party data:', error);
+                alert('Failed to fetch party details.');
+            });
+        }
+        
+        // Handle DELETE request
+        function deleteParty(id) {
+            if (!confirm('Are you sure you want to delete this party? This action cannot be undone.')) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('action', 'delete');
+            formData.append('id', id);
+
+            fetch(window.location.pathname, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    fetchParties();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An unexpected network error occurred while deleting.');
+            });
         }
     </script>
 </body>

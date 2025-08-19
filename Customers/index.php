@@ -1,14 +1,27 @@
+<?php
+session_start();
+
+// Check if the user is logged in. If not, redirect to the login page.
+if (!isset($_SESSION['party_id'])) {
+    header("Location: login.php");
+    exit();
+}
+
+// Fetch user details from the session, using htmlspecialchars for security
+$owner_name = isset($_SESSION['owner_name']) ? htmlspecialchars($_SESSION['owner_name']) : 'User';
+$business_name = isset($_SESSION['business_name']) ? htmlspecialchars($_SESSION['business_name']) : 'Company';
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>JSPL -Admin Panel</title>
+    <title>JSPL -Customer Panel</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-    <link rel="icon" type="image/png" href="Assets\logo.jpg" />
+    <link rel="icon" type="image/png" href="../Assets\logo.jpg" />
     <style>
         * {
             box-sizing: border-box;
@@ -259,103 +272,33 @@
         <div class="navbar-icons">
             <i class="fas fa-bell"></i>
             <i class="fas fa-envelope"></i>
-            <i class="fas fa-user-circle"></i>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                 <div style="display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2;">
+                    <span style="font-weight: 600; font-size: 15px;"><?php echo $owner_name; ?></span>
+                    <span style="font-size: 12px; color: #bdc3c7;"><?php echo $business_name; ?></span>
+                 </div>
+                 <i class="fas fa-user-circle" style="font-size: 28px;"></i>
+            </div>
         </div>
     </div>
 
     <div class="main">
         <div class="sidebar" id="sidebar">
-            <div class="sidebar-header">Admin Panel</div>
+            <div class="sidebar-header">Customer Panel</div>
             <ul class="sidebar-menu" id="sidebarMenu">
-                <!-- <li onclick="loadPage(this, 'dashboard.php')"><i class="fas fa-home"></i> <span>Dashboard</span></li> -->
+              
 
-                <!-- <li class="dropdown">
-                    <div onclick="toggleDropdown(this)">
-                        <i class="fas fa-user-graduate"></i> <span>Student Management</span> <i class="fas fa-angle-down"></i>
-                    </div>
-                    <ul class="dropdown-content">
-                        <li onclick="loadPage(this, '../Center/admission_form.php')"><i class="fas fa-file-invoice"></i> <span>Take Admission</span></li>
-                        <li onclick="loadPage(this, 'All_students.php')"><i class="fas fa-users-viewfinder"></i> <span>View All Students</span></li> 
-                    </ul>
-                </li>
-
-                <li class="dropdown">
-                    <div onclick="toggleDropdown(this)">
-                        <i class="fas fa-university"></i> <span>Universities Details</span> <i class="fas fa-angle-down"></i>
-                    </div>
-                    <ul class="dropdown-content">
-                        <li onclick="loadPage(this, 'university_form.php')"><i class="fas fa-plus-circle"></i> <span>Add Universities</span></li>
-                        <li onclick="loadPage(this, 'view_universities.php')"><i class="fas fa-list-alt"></i> <span>View All Universities</span></li>
-                        <li onclick="loadPage(this, 'ClgFee/index.php')"><i class="fas fa-handshake"></i> <span>Payment to college</span></li>
-                        <li onclick="loadPage(this, 'ClgFee/fee_management.php')"><i class="fas fa-handshake"></i> <span>College Payment Details</span></li>
-                    </ul>
-                </li>
-            
-                <li class="dropdown">
-                    <div onclick="toggleDropdown(this)">
-                        <i class="fas fa-dollar-sign"></i> <span>Fee Management</span>
-                        <i class="fas fa-angle-down"></i>
-                    </div>
-                   <ul class="dropdown-content">
-                        <li onclick="loadPage(this, 'reg_fee_controller.php')"><i class="fas fa-cash-register"></i> <span>Registration Fee Settings</span></li>
-                        <li onclick="loadPage(this, 'admin_fee_control.php')"><i class="fas fa-file-invoice"></i> <span>Admission & Late Fee Configuration</span></li>
-                        <li onclick="loadPage(this, 'fee_management.php')"><i class="fas fa-graduation-cap"></i> <span>Course Fee Management</span></li>
-</ul>
-
-                </li>
-                <li class="dropdown">
-                    <div onclick="toggleDropdown(this)">
-                        <i class="fas fa-dollar-sign"></i> <span>Commission Dashboard</span>
-                        <i class="fas fa-angle-down"></i>
-                    </div>
-                   <ul class="dropdown-content">
-                        <li   li onclick="loadPage(this, 'Commission/admin_commission_dashboard.php')"><i class="fas fa-cash-register"></i> <span>Commission Dashboard</span></li>
+                <li onclick="loadPage(this, 'order.php')"><i class="fas fa-map-marked-alt"></i> <span>Order </span></li>
+                <li onclick="loadPage(this, 'my_orders.php')"><i class="fas fa-tasks"></i> <span>My Orders</span></li>
                 
-</ul>
-
+                
+                <li>
+                    <a href="logout.php" class="logout-link"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a>
                 </li>
-
-                <li class="dropdown">
-                    <div onclick="toggleDropdown(this)">
-                        <i class="fas fa-dollar-sign"></i> <span>Franchise Management</span>
-                        <i class="fas fa-angle-down"></i>
-                    </div>
-                    <ul class="dropdown-content">
-                        <li onclick="loadPage(this, 'franchise_requests.php')"><i class="fas fa-handshake"></i> <span>Franchise Requests</span></li>
-                        <li onclick="loadPage(this, 'Center/create_franchise_login_form.php')"><i class="fas fa-handshake"></i> <span>Create Franchise Login </span></li>
-                      
-
-                    </ul>
-                </li> -->
-
-             <li onclick="loadPage(this, 'Bill_create.php')">
-        <i class="fas fa-file-invoice-dollar"></i> <span>Generate Invoice</span>
-    </li>
-    <li onclick="loadPage(this, 'add_party.php')">
-        <i class="fas fa-users"></i> <span>Manage Clients</span>
-    </li>
-    <li onclick="loadPage(this, 'add_goods.php')">
-        <i class="fas fa-boxes"></i> <span>Product Catalog</span>
-    </li>
-    <li onclick="loadPage(this, 'invoices.php')">
-        <i class="fas fa-receipt"></i> <span>View Invoices</span>
-    </li>
-    <li onclick="loadPage(this, 'admin_approval.php')">
-        <i class="fas fa-user-check"></i> <span>Approval Queue</span>
-    </li>
-   
-    <li onclick="loadPage(this, 'new_orders.php')">
-        <i class="fas fa-user-check"></i> <span>New Orders</span>
-    </li>
-    <li>
-        <a href="logout.php" class="logout-link">
-            <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
-        </a>
-    </li>
             </ul>
         </div>
         <div class="content">
-            <iframe id="contentFrame" src="Bill_create.php"></iframe>
+            <iframe id="contentFrame" src="order.php"></iframe>
         </div>
     </div>
 </div>

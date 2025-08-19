@@ -3,37 +3,101 @@
 require_once 'config/db.php';
 
 /**
+ * Helper function to convert an integer to words recursively for the Indian numbering system.
+ * This function should not be called directly from outside numberToWords.
+ * @param int $number The integer to convert.
+ * @return string The number in words, without currency units.
+ */
+function numberToWordsRecursive($number) {
+    $hyphen      = ' ';
+    $conjunction = ' and ';
+    $separator   = ', ';
+    $dictionary  = array(0 => 'zero', 1 => 'one', 2 => 'two', 3 => 'three', 4 => 'four', 5 => 'five', 6 => 'six', 7 => 'seven', 8 => 'eight', 9 => 'nine', 10 => 'ten', 11 => 'eleven', 12 => 'twelve', 13 => 'thirteen', 14 => 'fourteen', 15 => 'fifteen', 16 => 'sixteen', 17 => 'seventeen', 18 => 'eighteen', 19 => 'nineteen', 20 => 'twenty', 30 => 'thirty', 40 => 'forty', 50 => 'fifty', 60 => 'sixty', 70 => 'seventy', 80 => 'eighty', 90 => 'ninety', 100 => 'hundred', 1000 => 'thousand', 100000 => 'lakh', 10000000 => 'crore');
+    
+    $string = '';
+    
+    switch (true) {
+        case $number < 21:
+            $string = $dictionary[$number];
+            break;
+        case $number < 100:
+            $tens = ((int) ($number / 10)) * 10;
+            $units = $number % 10;
+            $string = $dictionary[$tens];
+            if ($units) {
+                $string .= $hyphen . $dictionary[$units];
+            }
+            break;
+        case $number < 1000:
+            $hundreds = floor($number / 100);
+            $remainder = $number % 100;
+            $string = $dictionary[$hundreds] . ' ' . $dictionary[100];
+            if ($remainder) {
+                $string .= $conjunction . numberToWordsRecursive($remainder);
+            }
+            break;
+        case $number < 100000:
+            $thousands = floor($number / 1000);
+            $remainder = $number % 1000;
+            $string = numberToWordsRecursive($thousands) . ' ' . $dictionary[1000];
+            if ($remainder) {
+                $string .= $separator . numberToWordsRecursive($remainder);
+            }
+            break;
+        case $number < 10000000:
+            $lakhs = floor($number / 100000);
+            $remainder = $number % 100000;
+            $string = numberToWordsRecursive($lakhs) . ' ' . $dictionary[100000];
+            if ($remainder) {
+                $string .= $separator . numberToWordsRecursive($remainder);
+            }
+            break;
+        default:
+            $crores = floor($number / 10000000);
+            $remainder = $number % 10000000;
+            $string = numberToWordsRecursive($crores) . ' ' . $dictionary[10000000];
+            if ($remainder) {
+                $string .= $separator . numberToWordsRecursive($remainder);
+            }
+            break;
+    }
+    return $string;
+}
+
+/**
  * Converts a number to Indian currency words with precise paise handling.
  * @param float $number The number to convert.
  * @return string The number in words.
  */
 function numberToWords($number) {
-    $hyphen      = ' '; $conjunction = ' and '; $separator   = ', '; $negative    = 'negative '; $dictionary  = array(0 => 'zero', 1 => 'one', 2 => 'two', 3 => 'three', 4 => 'four', 5 => 'five', 6 => 'six', 7 => 'seven', 8 => 'eight', 9 => 'nine', 10 => 'ten', 11 => 'eleven', 12 => 'twelve', 13 => 'thirteen', 14 => 'fourteen', 15 => 'fifteen', 16 => 'sixteen', 17 => 'seventeen', 18 => 'eighteen', 19 => 'nineteen', 20 => 'twenty', 30 => 'thirty', 40 => 'forty', 50 => 'fifty', 60 => 'sixty', 70 => 'seventy', 80 => 'eighty', 90 => 'ninety', 100 => 'hundred', 1000 => 'thousand', 100000 => 'lakh', 10000000 => 'crore');
-    if (!is_numeric($number)) return false;
-    if ($number < 0) return $negative . numberToWords(abs($number));
+    if (!is_numeric($number)) {
+        return false;
+    }
     
-    $string = $fraction = null;
+    if ($number < 0) {
+        return 'Negative ' . numberToWords(abs($number));
+    }
+    
+    // Format the number to exactly two decimal places.
     $number = number_format($number, 2, '.', '');
-    if (strpos($number, '.') !== false) {
-        list($number, $fraction) = explode('.', $number);
-    }
     
-    switch (true) {
-        case $number < 21: $string = $dictionary[$number]; break;
-        case $number < 100: $tens = ((int) ($number / 10)) * 10; $units = $number % 10; $string = $dictionary[$tens]; if ($units) $string .= $hyphen . $dictionary[$units]; break;
-        case $number < 1000: $hundreds = floor($number / 100); $remainder = $number % 100; $string = $dictionary[$hundreds] . ' ' . $dictionary[100]; if ($remainder) $string .= $conjunction . numberToWords($remainder); break;
-        case $number < 100000: $thousands = floor($number / 1000); $remainder = $number % 1000; $string = numberToWords($thousands) . ' ' . $dictionary[1000]; if ($remainder) $string .= $separator . numberToWords($remainder); break;
-        case $number < 10000000: $lakhs = floor($number / 100000); $remainder = $number % 100000; $string = numberToWords($lakhs) . ' ' . $dictionary[100000]; if ($remainder) $string .= $separator . numberToWords($remainder); break;
-        default: $crores = floor($number / 10000000); $remainder = $number % 10000000; $string = numberToWords($crores) . ' ' . $dictionary[10000000]; if ($remainder) $string .= $separator . numberToWords($remainder); break;
-    }
+    // Split into the integer (rupees) and fractional (paise) parts.
+    list($rupees, $paise) = explode('.', $number);
+    $rupees = (int)$rupees;
+    $paise = (int)$paise;
 
-    if (null !== $fraction && is_numeric($fraction) && (int)$fraction > 0) {
-        $string .= ' Rupees' . $conjunction . numberToWords((int)$fraction) . ' Paise';
-    } else {
-        $string .= ' Rupees';
+    // Convert the rupees part to words. If rupees is 0, it should say "Zero Rupees".
+    $rupees_in_words = ($rupees == 0) ? 'Zero' : numberToWordsRecursive($rupees);
+    
+    $final_string = ucwords($rupees_in_words) . ' Rupees';
+    
+    // If there is a paise part greater than 0, convert it and append it.
+    if ($paise > 0) {
+        $paise_in_words = numberToWordsRecursive($paise);
+        $final_string .= ' and ' . ucwords($paise_in_words) . ' Paise';
     }
     
-    return ucwords($string);
+    return $final_string;
 }
 
 function formatQuantity($qty) {
@@ -203,7 +267,14 @@ if ($action === 'save_invoice' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="invoice-box-container my-4">
             <div class="invoice-box">
                 <table cellpadding="0" cellspacing="0">
-                     <tr><td colspan="4" style="padding-bottom: 20px;"><table style="width:100%;"><tr><td style="width: 25%;"><img src="Assets/logo.jpg" style="max-width: 150px;" alt="Logo"></td><td style="width: 50%; text-align: center;"><img src="<?= $qr_code_url ?>" alt="QR Code"></td><td style="width: 25%; text-align: right; vertical-align: top;"><h2 style="color: #333; margin:0; font-size: 18px;"></h2></td></tr></table></td></tr>
+                     <tr>
+                        <td colspan="2" style="padding-bottom: 20px; vertical-align: top;">
+                            <img src="Assets/logo.jpg" style="max-width: 150px;" alt="Logo">
+                        </td>
+                        <td colspan="2" style="padding-bottom: 20px; text-align: right;">
+                            <img src="<?= $qr_code_url ?>" alt="QR Code">
+                        </td>
+                    </tr>
                     <tr class="information"><td colspan="2"><strong>Sold By: JSPL STEEL</strong><br>Third Floor, Plot No-747, Khata No-11,<br>Dhanbad, Jharkhand - 828109</td><td colspan="2" style="text-align: right;"><strong>Invoice No:</strong> <?= htmlspecialchars($invoice['invoice_no']) ?><br><strong>Dated:</strong> <?= date("d-M-Y", strtotime($invoice['invoice_date'])) ?><br><strong>E-Way Bill No:</strong> <?= htmlspecialchars($invoice['eway_bill_no']) ?></td></tr>
                     <tr class="information" style="border-top: 1px solid #eee; border-bottom: 1px solid #eee;"><td colspan="2"><strong>IRN:</strong> <?= htmlspecialchars($invoice['irn_no']) ?></td><td colspan="2" style="text-align: right;"><strong>Ack. No:</strong> <?= htmlspecialchars($invoice['ack_no']) ?><br><strong>Ack. Date:</strong> <?= !empty($invoice['ack_date']) ? date("d-M-Y", strtotime($invoice['ack_date'])) : 'N/A' ?></td></tr>
                     <tr class="heading"><td colspan="2">Buyer (Bill To)</td><td colspan="2">Consignee (Ship To)</td></tr>

@@ -1,10 +1,6 @@
 <?php
-// config/db.php
-// This file contains the database connection settings.
-// Store your database credentials here.
 
-// --- Database Credentials ---
-$servername = "localhost"; // Or your database server IP
+$servername = "localhost"; 
 $username = "root";        // Your database username
 $password = "";            // Your database password
 $dbname = "jspl"; // << IMPORTANT: Change this to your actual database name
@@ -22,3 +18,9 @@ if ($conn->connect_error) {
 $conn->set_charset("utf8mb4");
 
 ?>
+
+
+
+
+
+
