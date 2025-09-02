@@ -35,21 +35,23 @@ if (isset($conn)) {
             } while (!$is_unique);
             // --- End of Unique ID Generation ---
 
-            $stmt = $conn->prepare("INSERT INTO parties (unique_id, business_name, owner_name, address, gst_uin, state, contact_number, email, pincode, role, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt = $conn->prepare("INSERT INTO parties (unique_id, business_name, owner_name, address, gst_uin, gst_code, state, contact_number, email, pincode, role, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             if ($stmt === false) {
                 throw new Exception('Database prepare statement failed: ' . $conn->error);
             }
 
-            $stmt->bind_param("sssssssssss", $unique_id, $business_name, $owner_name, $address, $gst_uin, $state, $contact_number, $email, $pincode, $role, $status);
+            $stmt->bind_param("ssssssssssss", $unique_id, $business_name, $owner_name, $address, $gst_uin, $gst_code, $state, $contact_number, $email, $pincode, $role, $status);
 
             $business_name = htmlspecialchars(strip_tags($_POST['business_name']));
             $owner_name = htmlspecialchars(strip_tags($_POST['owner_name']));
             $address = htmlspecialchars(strip_tags($_POST['address']));
             $gst_uin = htmlspecialchars(strip_tags($_POST['gst_uin']));
+            $gst_code = filter_var($_POST['gst_code'], FILTER_SANITIZE_NUMBER_INT); // Sanitize for numbers
             $state = htmlspecialchars(strip_tags($_POST['state']));
             $contact_number = htmlspecialchars(strip_tags($_POST['contact_number']));
             $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
             $pincode = htmlspecialchars(strip_tags($_POST['pincode']));
+            $role = htmlspecialchars(strip_tags($_POST['role']));
             $status = 'approved';
 
             if ($stmt->execute()) {
@@ -80,17 +82,18 @@ if (isset($conn)) {
                 throw new Exception('Invalid Party ID.');
             }
 
-            $stmt = $conn->prepare("UPDATE parties SET business_name=?, owner_name=?, address=?, gst_uin=?, state=?, contact_number=?, email=?, pincode=?, role=? WHERE id=?");
+            $stmt = $conn->prepare("UPDATE parties SET business_name=?, owner_name=?, address=?, gst_uin=?, gst_code=?, state=?, contact_number=?, email=?, pincode=?, role=? WHERE id=?");
             if ($stmt === false) {
                 throw new Exception('Database prepare statement failed: ' . $conn->error);
             }
 
-            $stmt->bind_param("sssssssssi", $business_name, $owner_name, $address, $gst_uin, $state, $contact_number, $email, $pincode, $role, $party_id);
+            $stmt->bind_param("ssssssssssi", $business_name, $owner_name, $address, $gst_uin, $gst_code, $state, $contact_number, $email, $pincode, $role, $party_id);
             
             $business_name = htmlspecialchars(strip_tags($_POST['business_name']));
             $owner_name = htmlspecialchars(strip_tags($_POST['owner_name']));
             $address = htmlspecialchars(strip_tags($_POST['address']));
             $gst_uin = htmlspecialchars(strip_tags($_POST['gst_uin']));
+            $gst_code = filter_var($_POST['gst_code'], FILTER_SANITIZE_NUMBER_INT); // Sanitize for numbers
             $state = htmlspecialchars(strip_tags($_POST['state']));
             $contact_number = htmlspecialchars(strip_tags($_POST['contact_number']));
             $email = filter_var($_POST['email'], FILTER_SANITIZE_EMAIL);
@@ -152,7 +155,7 @@ if (isset($conn)) {
     // Handle FETCH (for table body)
     if (isset($_GET['action']) && $_GET['action'] == 'fetch') {
         $output = '';
-        $sql = "SELECT id, unique_id, business_name, owner_name, address, gst_uin, state, contact_number, email, pincode, role, created_at FROM parties ORDER BY id DESC";
+        $sql = "SELECT id, unique_id, business_name, owner_name, address, gst_uin, gst_code, state, contact_number, email, pincode, role, created_at FROM parties ORDER BY id DESC";
         $result = $conn->query($sql);
 
         if ($result && $result->num_rows > 0) {
@@ -163,7 +166,7 @@ if (isset($conn)) {
                 $output .= "<td><span class='role-badge'>" . htmlspecialchars($row["role"]) . "</span></td>";
                 $output .= "<td>" . htmlspecialchars($row["owner_name"]) . "</td>";
                 $output .= "<td>" . htmlspecialchars($row["address"]) . ", " . htmlspecialchars($row["pincode"]) . "</td>";
-                $output .= "<td>" . htmlspecialchars($row["gst_uin"]) . "</td>";
+                $output .= "<td>" . htmlspecialchars($row["gst_uin"]) . " (Code: " . htmlspecialchars($row["gst_code"]) . ")</td>";
                 $output .= "<td>
                                 <div class='contact-info'>
                                     <span><i class='fas fa-phone'></i>" . htmlspecialchars($row["contact_number"]) . "</span>
@@ -296,7 +299,6 @@ if (isset($conn)) {
         th, td {
             padding: 15px;
             border-bottom: 1px solid #e0e0e0;
-            /* REMOVED 'white-space: nowrap;' to allow content to wrap and fit the screen */
         }
         th {
             background-color: #f8f9fa;
@@ -333,7 +335,7 @@ if (isset($conn)) {
             border-radius: 12px;
             font-size: 12px;
             font-weight: 500;
-            white-space: nowrap; /* Keep the badge itself on one line */
+            white-space: nowrap;
         }
         .action-buttons {
             display: flex;
@@ -472,8 +474,7 @@ if (isset($conn)) {
                 <tbody id="partyTableBody">
                     <?php
                         if (isset($conn)) {
-                            // The initial table load is handled here. Subsequent updates are via fetch().
-                            $sql = "SELECT id, unique_id, business_name, owner_name, address, gst_uin, state, contact_number, email, pincode, role, created_at FROM parties ORDER BY id DESC";
+                            $sql = "SELECT id, unique_id, business_name, owner_name, address, gst_uin, gst_code, state, contact_number, email, pincode, role, created_at FROM parties ORDER BY id DESC";
                             $result = $conn->query($sql);
 
                             if ($result && $result->num_rows > 0) {
@@ -484,7 +485,7 @@ if (isset($conn)) {
                                     echo "<td><span class='role-badge'>" . htmlspecialchars($row["role"]) . "</span></td>";
                                     echo "<td>" . htmlspecialchars($row["owner_name"]) . "</td>";
                                     echo "<td>" . htmlspecialchars($row["address"]) . ", " . htmlspecialchars($row["pincode"]) . "</td>";
-                                    echo "<td>" . htmlspecialchars($row["gst_uin"]) . "</td>";
+                                    echo "<td>" . htmlspecialchars($row["gst_uin"]) . " (Code: " . htmlspecialchars($row["gst_code"]) . ")</td>";
                                     echo "<td>
                                             <div class='contact-info'>
                                                 <span><i class='fas fa-phone'></i>" . htmlspecialchars($row["contact_number"]) . "</span>
@@ -550,6 +551,10 @@ if (isset($conn)) {
                     <div class="form-group">
                         <label for="gst_uin">GST / UIN</label>
                         <input type="text" id="gst_uin" name="gst_uin" required maxlength="15">
+                    </div>
+                     <div class="form-group">
+                        <label for="gst_code">GST Code</label>
+                        <input type="number" id="gst_code" name="gst_code" placeholder="e.g., 27" required>
                     </div>
                     <div class="form-group full-width">
                         <label for="address">Address</label>
@@ -680,6 +685,7 @@ if (isset($conn)) {
                     document.getElementById('contact_number').value = party.contact_number;
                     document.getElementById('email').value = party.email;
                     document.getElementById('gst_uin').value = party.gst_uin;
+                    document.getElementById('gst_code').value = party.gst_code; // Populate new field
                     document.getElementById('address').value = party.address;
                     document.getElementById('state').value = party.state;
                     document.getElementById('pincode').value = party.pincode;

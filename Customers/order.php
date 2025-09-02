@@ -1,10 +1,12 @@
 <?php
 session_start();
 // Include your database connection file
-include '../config/db.php';
+// IMPORTANT: Make sure this path is correct for your project structure.
+include '../config/db.php'; 
 
 // Check if the user is logged in. If not, redirect to the login page.
 if (!isset($_SESSION['party_id'])) {
+    // In a real application, you would redirect.
     header("Location: login.php");
     exit();
 }
@@ -82,189 +84,156 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Place Your Order</title>
-    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        /* Custom styles to complement Tailwind */
         body {
-            font-family: 'Source Sans Pro', sans-serif;
-            background-color: #fdfbf5;
-            color: #333;
-            margin: 0;
-            padding: 20px;
+            font-family: 'Inter', sans-serif;
         }
-        .container {
-            max-width: 1300px;
-            margin: 0 auto;
-            background-color: #fff;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        /* Custom scrollbar for product list */
+        #product-list::-webkit-scrollbar {
+            width: 8px;
         }
-        h1, h2 {
-            color: #2c3e50;
-            text-align: center;
-            margin-top: 0;
-            margin-bottom: 30px;
-            font-weight: 700;
+        #product-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
         }
-        .message {
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-            font-weight: 600;
-            text-align: center;
+        #product-list::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
         }
-        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        .order-layout {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
+        #product-list::-webkit-scrollbar-thumb:hover {
+            background: #555;
         }
-        .product-list-container {
-            border: 1px solid #eee;
-            border-radius: 8px;
-            padding: 20px;
-        }
-        #product-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 15px;
-            max-height: 550px;
-            overflow-y: auto;
-            padding: 5px;
-        }
-        .product-item {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 80px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 15px;
-            text-align: center;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease-in-out;
-        }
-        .product-item:hover {
-            border-color: #1abc9c;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-        }
+        /* Animation for selected product */
         .product-item.selected {
             transform: scale(0.95);
-            border-color: #16a085;
-            background-color: #e8f8f5;
+            transition: transform 0.2s ease-in-out;
         }
-        .cart-container { /* No changes needed */ }
-        #cart-items-display { margin-bottom: 20px; }
-        .cart-item {
-            display: grid;
-            grid-template-columns: 1fr 100px 50px;
-            gap: 15px;
-            align-items: center;
-            padding: 15px 0;
-            border-bottom: 1px solid #eee;
-        }
-        .cart-item-name { font-weight: 600; }
-        .cart-item input[type="number"] {
-            padding: 8px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-            font-size: 16px;
-            width: 80px;
-            text-align: center;
-        }
-        .remove-btn {
-            background: #e74c3c; color: white; border: none; width: 35px; height: 35px;
-            border-radius: 50%; cursor: pointer; font-size: 16px; transition: background 0.3s;
-            display: flex; align-items: center; justify-content: center;
-        }
-        .remove-btn:hover { background: #c0392b; }
-        #cart-empty-msg {
-            text-align: center; padding: 40px; color: #777;
-            border: 2px dashed #eee; border-radius: 8px;
-        }
-        .cart-summary {
-            background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;
-        }
-        .summary-row {
-            display: flex; justify-content: space-between; font-size: 18px;
-            font-weight: 600; margin-bottom: 10px;
-        }
-        .summary-row:last-child { margin-bottom: 0; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-weight: 600; }
-        textarea {
-            width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;
-            font-family: 'Source Sans Pro', sans-serif; font-size: 16px; resize: vertical;
-        }
-        .submit-btn {
-            background-color: #2c3e50; color: #fff; padding: 15px 25px; border: none;
-            border-radius: 5px; cursor: pointer; font-size: 18px; font-weight: 700;
-            transition: background-color 0.3s ease; display: block; width: 100%;
-        }
-        .submit-btn:hover { background-color: #34495e; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1><i class="fas fa-dolly-flatbed"></i> Place Your Order</h1>
+<body class="bg-gray-50 text-gray-800">
 
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-7xl">
+        
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 flex items-center justify-center gap-3">
+                <i class="fas fa-dolly-flatbed text-teal-500"></i>
+                <span>Place Your Order</span>
+            </h1>
+            <p class="text-gray-600 mt-2">Select products and place your order with ease.</p>
+        </header>
+
+        <!-- Success/Error Messages -->
         <?php if (isset($success_message)): ?>
-            <div class="message success"><?php echo htmlspecialchars($success_message); ?></div>
+            <div id="alert-message" class="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md mb-6 shadow-sm" role="alert">
+                <p class="font-bold">Success</p>
+                <p><?php echo htmlspecialchars($success_message); ?></p>
+            </div>
         <?php endif; ?>
         <?php if (isset($error_message)): ?>
-            <div class="message error"><?php echo htmlspecialchars($error_message); ?></div>
+            <div id="alert-message" class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md mb-6 shadow-sm" role="alert">
+                <p class="font-bold">Error</p>
+                <p><?php echo htmlspecialchars($error_message); ?></p>
+            </div>
         <?php endif; ?>
 
-        <div class="order-layout">
-            <div class="product-list-container">
-                <h2>Click a Product to Add</h2>
-                <div id="product-list">
+        <!-- Main Layout: Products and Cart -->
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <!-- Products Section (takes 2/3 width on large screens) -->
+            <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-lg">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-800">Click a Product to Add</h2>
+                <div id="product-list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4 max-h-[65vh] overflow-y-auto pr-2">
                     <?php foreach ($products as $product): ?>
-                        <div class="product-item" data-id="<?php echo $product['id']; ?>" data-name="<?php echo htmlspecialchars($product['product_name'], ENT_QUOTES); ?>">
+                        <div class="product-item flex items-center justify-center h-28 p-3 text-center font-semibold text-gray-700 bg-gray-100 border-2 border-transparent rounded-lg cursor-pointer transition-all duration-200 hover:border-teal-500 hover:shadow-md hover:bg-teal-50" 
+                             data-id="<?php echo $product['id']; ?>" 
+                             data-name="<?php echo htmlspecialchars($product['product_name'], ENT_QUOTES); ?>">
                             <?php echo htmlspecialchars($product['product_name']); ?>
                         </div>
                     <?php endforeach; ?>
                 </div>
             </div>
 
-            <div class="cart-container">
-                <form action="order.php" method="post" id="order-form">
-                    <h2><i class="fas fa-shopping-cart"></i> Your Cart</h2>
-                    <div id="cart-items-display">
-                        <p id="cart-empty-msg">Your cart is empty.</p>
+            <!-- Cart Section (takes 1/3 width on large screens) -->
+            <div class="bg-white p-6 rounded-2xl shadow-lg lg:sticky lg:top-8 h-fit">
+                <form action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" method="post" id="order-form">
+                    <h2 class="text-2xl font-semibold mb-4 text-gray-800 flex items-center gap-2">
+                        <i class="fas fa-shopping-cart text-teal-500"></i>
+                        Your Cart
+                    </h2>
+                    
+                    <!-- Cart Items Display -->
+                    <div id="cart-items-display" class="mb-4 space-y-3">
+                        <div id="cart-empty-msg" class="text-center py-10 px-4 border-2 border-dashed border-gray-200 rounded-lg">
+                            <i class="fas fa-box-open text-4xl text-gray-300 mb-2"></i>
+                            <p class="text-gray-500">Your cart is empty.</p>
+                        </div>
                     </div>
+                    
+                    <!-- Hidden inputs for form submission -->
                     <div id="hidden-form-inputs"></div>
 
-                    <div class="cart-summary">
-                        <div class="summary-row"><span>Total Items:</span><span id="total-items">0</span></div>
-                        <div class="summary-row"><span>Total Quantity:</span><span id="total-quantity">0</span></div>
+                    <!-- Cart Summary -->
+                    <div id="cart-summary" class="bg-gray-50 p-4 rounded-lg mb-6 space-y-2 hidden">
+                        <div class="flex justify-between items-center text-md font-medium text-gray-600">
+                            <span>Total Items:</span>
+                            <span id="total-items" class="font-semibold text-gray-800">0</span>
+                        </div>
+                        <div class="flex justify-between items-center text-md font-medium text-gray-600">
+                            <span>Total Quantity:</span>
+                            <span id="total-quantity" class="font-semibold text-gray-800">0</span>
+                        </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="order_message">Order Message (Optional)</label>
-                        <textarea name="order_message" id="order_message" rows="4" placeholder="Add any special instructions for your order..."></textarea>
+                    <!-- Order Message -->
+                    <div>
+                        <label for="order_message" class="block mb-2 font-medium text-gray-700">Order Message (Optional)</label>
+                        <textarea name="order_message" id="order_message" rows="4" placeholder="Add any special instructions..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"></textarea>
                     </div>
-                    <button type="submit" class="submit-btn"><i class="fas fa-paper-plane"></i> Place Order</button>
+                    
+                    <!-- Submit Button -->
+                    <button type="submit" class="w-full bg-teal-500 text-white font-bold py-3 px-4 rounded-lg mt-6 hover:bg-teal-600 focus:outline-none focus:ring-4 focus:ring-teal-300 transition-all duration-300 flex items-center justify-center gap-2 text-lg">
+                        <i class="fas fa-paper-plane"></i>
+                        Place Order
+                    </button>
                 </form>
             </div>
-        </div>
+        </main>
     </div>
 
     <script>
+        // State management for the cart
         let cart = {};
 
+        // DOM element references
         const cartDisplay = document.getElementById('cart-items-display');
         const hiddenInputsContainer = document.getElementById('hidden-form-inputs');
         const emptyCartMsg = document.getElementById('cart-empty-msg');
+        const cartSummary = document.getElementById('cart-summary');
+        const alertMessage = document.getElementById('alert-message');
 
+        /**
+         * Removes an item from the cart and re-renders the UI.
+         * @param {string|number} id - The product ID to remove.
+         */
         function removeFromCart(id) {
             delete cart[id];
             renderCart();
         }
 
+        /**
+         * Updates the quantity of an item in the cart and re-renders.
+         * @param {string|number} id - The product ID to update.
+         * @param {string|number} newQuantity - The new quantity.
+         */
         function updateQuantity(id, newQuantity) {
             if (cart[id]) {
                 cart[id].quantity = Math.max(1, parseInt(newQuantity) || 1);
@@ -272,29 +241,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
 
+        /**
+         * Renders the entire cart UI based on the current cart state.
+         */
         function renderCart() {
+            // Clear previous state
             cartDisplay.innerHTML = '';
             hiddenInputsContainer.innerHTML = '';
+            
             const cartItems = Object.keys(cart);
 
             if (cartItems.length === 0) {
                 cartDisplay.appendChild(emptyCartMsg);
+                cartSummary.classList.add('hidden'); // Hide summary if cart is empty
             } else {
-                if (cartDisplay.contains(emptyCartMsg)) {
-                    cartDisplay.removeChild(emptyCartMsg);
-                }
+                cartSummary.classList.remove('hidden'); // Show summary
                 cartItems.forEach(id => {
                     const item = cart[id];
+                    
+                    // Create visual cart item
                     const cartItemDiv = document.createElement('div');
-                    cartItemDiv.className = 'cart-item';
+                    cartItemDiv.className = 'cart-item flex items-center gap-3 p-2 bg-white rounded-lg border';
                     cartItemDiv.innerHTML = `
-                        <span class="cart-item-name">${item.name}</span>
-                        <input type="number" value="${item.quantity}" min="1" onchange="updateQuantity(${id}, this.value)" onfocus="this.select()">
-                        <button type="button" class="remove-btn" onclick="removeFromCart(${id})"><i class="fas fa-trash"></i></button>
+                        <span class="cart-item-name flex-grow font-medium text-gray-700">${item.name}</span>
+                        <input type="number" value="${item.quantity}" min="1" onchange="updateQuantity(${id}, this.value)" onfocus="this.select()" class="w-16 text-center border border-gray-300 rounded-md py-1 px-2 focus:ring-1 focus:ring-teal-500">
+                        <button type="button" class="remove-btn text-red-500 hover:text-red-700 transition w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-100" onclick="removeFromCart(${id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     `;
                     cartDisplay.appendChild(cartItemDiv);
 
-                    // Create hidden inputs for the form submission
+                    // Create hidden inputs for form submission
                     const hiddenIdInput = document.createElement('input');
                     hiddenIdInput.type = 'hidden';
                     hiddenIdInput.name = 'product_id[]';
@@ -311,6 +288,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             updateSummary();
         }
 
+        /**
+         * Updates the summary totals (items and quantity).
+         */
         function updateSummary() {
             const cartItems = Object.values(cart);
             const totalItems = cartItems.length;
@@ -319,11 +299,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             document.getElementById('total-quantity').textContent = totalQuantity;
         }
 
-        // Add event listeners for product box selection
-        document.querySelectorAll('.product-item').forEach(box => {
-            box.addEventListener('click', function() {
-                const id = this.dataset.id;
-                const name = this.dataset.name;
+        // Event delegation for product clicks for better performance
+        document.getElementById('product-list').addEventListener('click', function(e) {
+            const productItem = e.target.closest('.product-item');
+            if (productItem) {
+                const id = productItem.dataset.id;
+                const name = productItem.dataset.name;
 
                 // Add or increment the product in the cart
                 if (cart[id]) {
@@ -336,13 +317,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 renderCart();
 
                 // Provide brief visual feedback on the clicked box
-                this.classList.add('selected');
+                productItem.classList.add('selected', 'bg-teal-100', 'border-teal-500');
                 setTimeout(() => {
-                    this.classList.remove('selected');
-                }, 300); // Visual feedback lasts for 300ms
-            });
+                    productItem.classList.remove('selected', 'bg-teal-100', 'border-teal-500');
+                }, 300);
+            }
         });
 
+        // Automatically hide success/error messages after a few seconds
+        if (alertMessage) {
+            setTimeout(() => {
+                alertMessage.style.transition = 'opacity 0.5s ease';
+                alertMessage.style.opacity = '0';
+                setTimeout(() => alertMessage.remove(), 500);
+            }, 5000); // 5 seconds
+        }
+
+        // Initial render on page load
         window.onload = function() {
             renderCart();
         };
@@ -350,5 +341,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </body>
 </html>
 <?php
+// Close the database connection in a real application
 $conn->close();
 ?>

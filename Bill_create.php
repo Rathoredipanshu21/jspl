@@ -1,10 +1,8 @@
 <?php
-// Includes your db.php file and makes the $conn variable available.
 require_once 'config/db.php';
 
 /**
- * Helper function to convert an integer to words recursively for the Indian numbering system.
- * This function should not be called directly from outside numberToWords.
+
  * @param int $number The integer to convert.
  * @return string The number in words, without currency units.
  */
@@ -104,10 +102,6 @@ function formatQuantity($qty) {
     return (fmod($qty, 1) !== 0.00) ? number_format($qty, 3) : number_format($qty, 0);
 }
 
-// =============================================================================
-// SECTION 2: ROUTING AND ACTION HANDLING
-// =============================================================================
-
 $action = $_REQUEST['action'] ?? 'create';
 
 // --- AJAX Request Handling ---
@@ -117,7 +111,7 @@ if ($action === 'ajax') {
 
     if ($request_type === 'get_party' && isset($_GET['id'])) {
         $party_id = intval($_GET['id']);
-        $stmt = $conn->prepare("SELECT `business_name`, `address`, `gst_uin`, `state` FROM `parties` WHERE id = ?");
+        $stmt = $conn->prepare("SELECT `business_name`, `address`, `gst_uin`, `state`, `gst_code` FROM `parties` WHERE id = ?");
         $stmt->bind_param("i", $party_id);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -238,7 +232,9 @@ if ($action === 'save_invoice' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($invoice_id > 0 && isset($_POST['items']) && is_array($_POST['items'])) {
             $stmt_items = $conn->prepare("INSERT INTO invoice_items (invoice_id, product_id, product_name, hsn_sac, quantity, unit, rate, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
             foreach ($_POST['items'] as $item) {
-                $stmt_items->bind_param("iisssddd", $invoice_id, $item['product_id'], $item['product_name'], $item['hsn_sac'], $item['quantity'], $item['unit'], $item['rate'], $item['amount']);
+                // ## THIS IS THE FIX ##
+                // Changed bind_param from "iisssddd" to "iissdsdd" to correctly save unit as a string (s) and quantity as a double (d).
+                $stmt_items->bind_param("iissdsdd", $invoice_id, $item['product_id'], $item['product_name'], $item['hsn_sac'], $item['quantity'], $item['unit'], $item['rate'], $item['amount']);
                 $stmt_items->execute();
             }
             $stmt_items->close();
@@ -264,7 +260,7 @@ if ($action === 'save_invoice' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <style>
-        body { background-color: #f8f9fa; }
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .invoice-container { background-color: #ffffff; padding: 2.5rem; margin: 2rem auto; border-radius: 15px; box-shadow: 0 8px 25px rgba(0,0,0,0.1); max-width: 1100px; }
         .form-control:read-only { background-color: #e9ecef; }
         .search-results { position: absolute; background-color: white; border: 1px solid #ddd; z-index: 1056; width: 100%; max-height: 250px; overflow-y: auto; border-radius: 5px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
@@ -274,19 +270,44 @@ if ($action === 'save_invoice' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         .modal { z-index: 1055; }
         .input-group .btn { border-radius: 0 .25rem .25rem 0 !important; }
         
-        /* Print-specific and Preview styles */
-        .invoice-box { max-width: 800px; margin: auto; padding: 30px; border: 1px solid #eee; font-size: 14px; line-height: 20px; color: #555; background: #fff; }
-        .invoice-box table { width: 100%; line-height: inherit; text-align: left; border-collapse: collapse; }
-        .invoice-box table td, .invoice-box table th { padding: 8px; vertical-align: top; }
-        .invoice-box table tr.heading td, .invoice-box table tr.heading th { background: #f2f2f2; border-bottom: 1px solid #ddd; font-weight: bold; text-align:left; }
-        .invoice-box table tr.item td { border-bottom: 1px solid #eee; }
+        /* --- STYLISH INVOICE STYLES --- */
+        .invoice-box {
+            max-width: 850px;
+            margin: auto;
+            padding: 25px;
+            border: 1px solid #ddd;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            font-size: 14px;
+            line-height: 20px;
+            font-family: 'Helvetica Neue', 'Helvetica', Helvetica, Arial, sans-serif;
+            color: #333;
+            background: #fff;
+        }
+        .invoice-box table {
+            width: 100%;
+            line-height: inherit;
+            text-align: left;
+            border-collapse: collapse;
+        }
+        .invoice-box table td, .invoice-box table th {
+            padding: 5px;
+            vertical-align: top;
+        }
+        .invoice-box .items-table td, .invoice-box .items-table th {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        .invoice-box .items-table th {
+            background: #f8f8f8;
+            font-weight: bold;
+        }
         .no-print { text-align: center; margin-top: 20px; }
         
         @media print {
-            body { background-color: #fff; }
+            body { background-color: #fff; -webkit-print-color-adjust: exact; }
             .no-print, .invoice-container, .modal, .modal-backdrop { display: none !important; }
             .invoice-box-container { display: block !important; box-shadow: none; border: none; margin: 0; padding: 0; }
-            .invoice-box { box-shadow: none; border: 1px solid #ccc; margin: 0; padding: 15px; }
+            .invoice-box { box-shadow: none; border: 1px solid #ccc; margin: 0; padding: 15px; width: 100%; }
         }
     </style>
 </head>
@@ -296,7 +317,8 @@ if ($action === 'save_invoice' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php if ($action === 'print' && isset($_GET['id'])): ?>
         <?php
         $invoice_id = intval($_GET['id']);
-        $stmt = $conn->prepare("SELECT i.*, c.business_name as consignee_name, c.unique_id as consignee_uid, c.address as consignee_address, c.gst_uin as consignee_gst, c.state as consignee_state, b.business_name as biller_name, b.unique_id as biller_uid, b.address as biller_address, b.gst_uin as biller_gst, b.state as biller_state FROM invoices i JOIN parties c ON i.consignee_id = c.id JOIN parties b ON i.biller_id = b.id WHERE i.id = ?");
+        // ## CHANGE 2: Added `gst_code` for both consignee and biller to the main invoice query.
+        $stmt = $conn->prepare("SELECT i.*, c.business_name as consignee_name, c.unique_id as consignee_uid, c.address as consignee_address, c.gst_uin as consignee_gst, c.state as consignee_state, c.gst_code as consignee_gst_code, b.business_name as biller_name, b.unique_id as biller_uid, b.address as biller_address, b.gst_uin as biller_gst, b.state as biller_state, b.gst_code as biller_gst_code FROM invoices i JOIN parties c ON i.consignee_id = c.id JOIN parties b ON i.biller_id = b.id WHERE i.id = ?");
         $stmt->bind_param("i", $invoice_id);
         $stmt->execute();
         $invoice = $stmt->get_result()->fetch_assoc();
@@ -311,92 +333,143 @@ if ($action === 'save_invoice' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if(isset($_GET['status']) && $_GET['status'] == 'success'): ?>
             <div class="alert alert-success mt-4 no-print">Invoice saved successfully!</div>
         <?php endif; ?>
+        
         <div class="invoice-box-container my-4">
             <div class="invoice-box">
-                <table cellpadding="0" cellspacing="0">
-                     <tr>
-                        <td colspan="3" style="padding-bottom: 20px; vertical-align: top;">
-                            <img src="Assets/logo.jpg" style="max-width: 150px;" alt="Logo">
-                        </td>
-                        <td colspan="3" style="padding-bottom: 20px; text-align: right;">
-                            <img src="<?= $qr_code_url ?>" alt="QR Code">
-                        </td>
+                <table style="width:100%; margin-bottom: 20px;">
+                    <tr>
+                        <td style="width:25%; vertical-align: top;"><img src="Assets/logo.jpg" style="max-width: 150px;" alt="Logo"></td>
+                        <td style="width:50%; text-align: center; vertical-align: top;"><h2 style="margin:0; font-weight: bold;">TAX INVOICE</h2></td>
+                        <td style="width:25%; text-align: right; vertical-align: top;"><img src="<?= $qr_code_url ?>" alt="QR Code" style="width:100px; height:100px;"></td>
                     </tr>
-                    <tr class="information">
-                        <td colspan="3" style="vertical-align: top;">
+                </table>
+                
+                <table style="width:100%; margin-bottom: 15px;">
+                    <tr>
+                        <td style="width: 50%; vertical-align: top; border: 1px solid #eee; padding: 15px; border-radius: 5px;">
                             <strong>Sold By: JSPL STEEL</strong><br>
                             Third Floor, Plot No-747, Khata No-11,<br>
                             Dhanbad, Jharkhand - 828109<br>
-                            <strong>GSTIN: 20AAVFJ8255B1ZD</strong>
+                            <strong>GSTIN: 20AAVFJ8255B1ZD</strong><br>
+                            <strong>State: JHARKHAND , Code: 20</strong>
                         </td>
-                        <td colspan="3" style="vertical-align: top; text-align: right;">
-                            <table style="margin-left: auto; margin-right: 0; text-align: left;">
-                                <tr><td style="text-align: right; padding-right: 10px;"><strong>Invoice No:</strong></td><td><?= htmlspecialchars($invoice['invoice_no']) ?></td></tr>
-                                <tr><td style="text-align: right; padding-right: 10px;"><strong>Dated:</strong></td><td><?= date("d-M-Y", strtotime($invoice['invoice_date'])) ?></td></tr>
-                                <tr><td style="text-align: right; padding-right: 10px;"><strong>E-Way Bill No:</strong></td><td><?= htmlspecialchars($invoice['eway_bill_no']) ?></td></tr>
+                        <td style="width: 50%; vertical-align: top; border: 1px solid #eee; padding: 15px; border-radius: 5px;">
+                            <table style="width:100%;">
+                                <tr><td style="padding: 2px;"><strong>Invoice No:</strong></td><td style="padding: 2px;"><?= htmlspecialchars($invoice['invoice_no']) ?></td></tr>
+                                <tr><td style="padding: 2px;"><strong>Dated:</strong></td><td style="padding: 2px;"><?= date("d-M-Y", strtotime($invoice['invoice_date'])) ?></td></tr>
+                                <tr><td style="padding: 2px;"><strong>E-Way Bill No:</strong></td><td style="padding: 2px;"><?= htmlspecialchars($invoice['eway_bill_no']) ?></td></tr>
                                 <?php if(!empty($invoice['other_fer_loading_from'])): ?>
-                                    <tr><td style="text-align: right; padding-right: 10px;"><strong>Loading From:</strong></td><td><?= htmlspecialchars($invoice['other_fer_loading_from']) ?></td></tr>
+                                    <tr><td style="padding: 2px;"><strong>Loading From:</strong></td><td style="padding: 2px;"><?= htmlspecialchars($invoice['other_fer_loading_from']) ?></td></tr>
                                 <?php endif; ?>
                             </table>
                         </td>
                     </tr>
-                    <tr class="information" style="border-top: 1px solid #eee; border-bottom: 1px solid #eee;">
-                        <td colspan="3"><strong>IRN:</strong> <?= htmlspecialchars($invoice['irn_no']) ?></td>
-                        <td colspan="3" style="text-align: right;">
-                             <table style="margin-left: auto; margin-right: 0; text-align: left;">
-                                <tr><td style="text-align: right; padding-right: 10px;"><strong>Ack. No:</strong></td><td><?= htmlspecialchars($invoice['ack_no']) ?></td></tr>
-                                <tr><td style="text-align: right; padding-right: 10px;"><strong>Ack. Date:</strong></td><td><?= !empty($invoice['ack_date']) ? date("d-M-Y", strtotime($invoice['ack_date'])) : 'N/A' ?></td></tr>
-                            </table>
+                </table>
+                
+                <table style="width:100%; margin-bottom: 15px;">
+                     <tr>
+                        <td style="width: 50%; vertical-align: top; border: 1px solid #eee; padding: 15px; border-radius: 5px;">
+                            <strong>Buyer (Bill To):</strong><br>
+                            <strong><?= htmlspecialchars($invoice['biller_name']) ?> (<?= htmlspecialchars($invoice['biller_uid']) ?>)</strong><br>
+                            <?= nl2br(htmlspecialchars($invoice['biller_address'])) ?><br>
+                            <strong>GSTIN:</strong> <?= htmlspecialchars($invoice['biller_gst']) ?><br>
+                            <strong>State:</strong> <?= htmlspecialchars($invoice['biller_state']) ?> , <strong>Code:</strong> <?= htmlspecialchars($invoice['biller_gst_code']) ?>
+                        </td>
+                        <td style="width: 50%; vertical-align: top; border: 1px solid #eee; padding: 15px; border-radius: 5px;">
+                            <strong>Consignee (Ship To):</strong><br>
+                            <strong><?= htmlspecialchars($invoice['consignee_name']) ?> (<?= htmlspecialchars($invoice['consignee_uid']) ?>)</strong><br>
+                            <?= nl2br(htmlspecialchars($invoice['consignee_address'])) ?><br>
+                            <strong>GSTIN:</strong> <?= htmlspecialchars($invoice['consignee_gst']) ?><br>
+                             <strong>State:</strong> <?= htmlspecialchars($invoice['consignee_state']) ?> , <strong>Code:</strong> <?= htmlspecialchars($invoice['consignee_gst_code']) ?>
                         </td>
                     </tr>
-                    <tr class="heading"><td colspan="3">Buyer (Bill To)</td><td colspan="3">Consignee (Ship To)</td></tr>
-                    <tr class="details"><td colspan="3"><strong><?= htmlspecialchars($invoice['biller_name']) ?> (<?= htmlspecialchars($invoice['biller_uid']) ?>)</strong><br><?= nl2br(htmlspecialchars($invoice['biller_address'])) ?><br><strong>GSTIN:</strong> <?= htmlspecialchars($invoice['biller_gst']) ?></td><td colspan="3"><strong><?= htmlspecialchars($invoice['consignee_name']) ?> (<?= htmlspecialchars($invoice['consignee_uid']) ?>)</strong><br><?= nl2br(htmlspecialchars($invoice['consignee_address'])) ?><br><strong>GSTIN:</strong> <?= htmlspecialchars($invoice['consignee_gst']) ?></td></tr>
-                    
+                </table>
+
+                <table style="width:100%; margin-bottom: 20px; border: 1px solid #eee; border-radius: 5px; border-collapse: separate; border-spacing: 0;">
+                    <tr style="background-color: #f8f8f8;">
+                        <th style="padding: 8px;">Buyer's Order No</th>
+                        <th style="padding: 8px;">Order Date</th>
+                        <th style="padding: 8px;">Dispatch Through</th>
+                        <th style="padding: 8px;">Motor Vehicle No</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border-top: 1px solid #eee;"><?= htmlspecialchars($invoice['buyers_order_no']) ?: 'N/A' ?></td>
+                        <td style="padding: 8px; border-top: 1px solid #eee;"><?= !empty($invoice['buyers_order_date']) ? date("d-M-Y", strtotime($invoice['buyers_order_date'])) : 'N/A' ?></td>
+                        <td style="padding: 8px; border-top: 1px solid #eee;"><?= htmlspecialchars($invoice['dispatch_through']) ?: 'N/A' ?></td>
+                        <td style="padding: 8px; border-top: 1px solid #eee;"><?= htmlspecialchars($invoice['motor_vehicle_no']) ?: 'N/A' ?></td>
+                    </tr>
+                </table>
+
+                <table class="items-table">
                     <tr class="heading">
+                        <th style="text-align:center; width: 40px;">#</th>
                         <th>Description</th>
                         <th>HSN/SAC</th>
                         <th style="text-align:right;">Qty</th>
-                        <th style="text-align:right;">Unit</th>
+                        <th style="text-align:center;">Unit</th>
                         <th style="text-align:right;">Rate</th>
                         <th style="text-align:right;">Amount</th>
                     </tr>
-                    <?php $total_qty = 0; while ($item = $items_result->fetch_assoc()): $total_qty += $item['quantity']; ?>
+                    <?php $sno = 1; $total_qty = 0; while ($item = $items_result->fetch_assoc()): $total_qty += $item['quantity']; ?>
                     <tr class="item">
+                        <td style="text-align:center;"><?= $sno++ ?></td>
                         <td><?= htmlspecialchars($item['product_name']) ?></td>
                         <td><?= htmlspecialchars($item['hsn_sac']) ?></td>
                         <td style="text-align:right;"><?= formatQuantity($item['quantity']) ?></td>
-                        <td style="text-align:right;"><?= htmlspecialchars($item['unit']) ?></td>
+                        <td style="text-align:center;"><?= htmlspecialchars($item['unit']) ?></td>
                         <td style="text-align:right;"><?= number_format($item['rate'], 2) ?></td>
                         <td style="text-align:right;"><?= number_format($item['amount'], 2) ?></td>
                     </tr>
                     <?php endwhile; ?>
-                    
-                    <?php
-                        $grand_total_unrounded = $invoice['grand_total'] - $invoice['round_off_amount'];
-                        $format_rate = function($rate) {
-                            return rtrim(rtrim($rate, '0'), '.');
-                        };
-                    ?>
-                    <tr style="font-weight:bold; border-top: 2px solid #ccc;"><td colspan="3" rowspan="10" style="vertical-align: bottom;"><strong>Amount (in words):</strong><br><?= htmlspecialchars($invoice['amount_in_words']) ?></td><td colspan="2" style="text-align:right;">Sub Total</td><td style="text-align:right;"><?= number_format($invoice['sub_total'], 2) ?></td></tr>
-                    <?php if ($invoice['cgst_amount'] > 0): ?>
-                        <tr><td colspan="2" style="text-align:right;">CGST @<?= $format_rate($invoice['cgst_rate']) ?>%</td><td style="text-align:right;"><?= number_format($invoice['cgst_amount'], 2) ?></td></tr>
-                    <?php endif; ?>
-                    <?php if ($invoice['sgst_amount'] > 0): ?>
-                        <tr><td colspan="2" style="text-align:right;">SGST @<?= $format_rate($invoice['sgst_rate']) ?>%</td><td style="text-align:right;"><?= number_format($invoice['sgst_amount'], 2) ?></td></tr>
-                    <?php endif; ?>
-                    <?php if (isset($invoice['igst_amount']) && $invoice['igst_amount'] > 0): ?>
-                        <tr><td colspan="2" style="text-align:right;">IGST @18%</td><td style="text-align:right;"><?= number_format($invoice['igst_amount'], 2) ?></td></tr>
-                    <?php endif; ?>
-                    <?php if ($invoice['transit_insurance_amount'] > 0): ?>
-                        <tr><td colspan="2" style="text-align:right;">Transit Insurance @<?= $format_rate($invoice['transit_insurance_rate']) ?>%</td><td style="text-align:right;"><?= number_format($invoice['transit_insurance_amount'], 2) ?></td></tr>
-                    <?php endif; ?>
-                    <tr style="border-top: 1px solid #ccc;"><td colspan="2" style="text-align:right;">Grand Total</td><td style="text-align:right;"><?= number_format($grand_total_unrounded, 2) ?></td></tr>
-                    <?php if (isset($invoice['round_off_amount']) && $invoice['round_off_amount'] != 0): ?>
-                        <tr><td colspan="2" style="text-align:right;"><strong>Round Off</strong></td><td style="text-align:right;"><?= number_format($invoice['round_off_amount'], 2) ?></td></tr>
-                    <?php endif; ?>
-                    <tr style="font-weight:bold; background: #f2f2f2; border-top:2px solid #ccc;"><td colspan="2" style="text-align:right;"><strong>FINAL AMOUNT</strong></td><td style="text-align:right;"><strong><?= number_format($invoice['grand_total'], 2) ?></strong></td></tr>
                 </table>
-                <div style="margin-top: 30px; padding-top: 15px; border-top: 2px solid #eee; font-size: 13px;"><table style="width: 100%;"><tr><td style="width: 60%; vertical-align: top;"><strong>BANK DETAIL</strong><br>A/C NAME: JSPL STEEL<br>A/C NO.: 50200113154873<br>IFSC: HDFC0008981<br>BANK: HDFC BANK LTD<br>BRANCH: DHAIYA<br><br><strong>Declaration:</strong><br><small>We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</small></td><td style="width: 40%; text-align: right; vertical-align: top;">For <strong>JSPL STEEL</strong><br><br><br><br><br>Authorised Signatory</td></tr></table></div>
+                
+                <table style="width:100%; margin-top: 20px;">
+                    <tr>
+                        <td style="width: 60%; vertical-align: top;">
+                            <strong>Amount (in words):</strong><br>
+                            <span style="font-weight: bold;"><?= htmlspecialchars($invoice['amount_in_words']) ?></span>
+                        </td>
+                        <td style="width: 40%; vertical-align: top;">
+                            <table style="width:100%;">
+                                <?php $format_rate = function($rate) { return rtrim(rtrim($rate, '0'), '.'); }; ?>
+                                <tr><td style="text-align:right; padding: 4px;">Sub Total</td><td style="text-align:right; width: 120px; padding: 4px;"><?= number_format($invoice['sub_total'], 2) ?></td></tr>
+                                <?php if ($invoice['cgst_amount'] > 0): ?>
+                                    <tr><td style="text-align:right; padding: 4px;">CGST @<?= $format_rate($invoice['cgst_rate']) ?>%</td><td style="text-align:right; padding: 4px;"><?= number_format($invoice['cgst_amount'], 2) ?></td></tr>
+                                <?php endif; ?>
+                                <?php if ($invoice['sgst_amount'] > 0): ?>
+                                     <tr><td style="text-align:right; padding: 4px;">SGST @<?= $format_rate($invoice['sgst_rate']) ?>%</td><td style="text-align:right; padding: 4px;"><?= number_format($invoice['sgst_amount'], 2) ?></td></tr>
+                                <?php endif; ?>
+                                <?php if (isset($invoice['igst_amount']) && $invoice['igst_amount'] > 0): ?>
+                                    <tr><td style="text-align:right; padding: 4px;">IGST @18%</td><td style="text-align:right; padding: 4px;"><?= number_format($invoice['igst_amount'], 2) ?></td></tr>
+                                <?php endif; ?>
+                                 <?php if ($invoice['transit_insurance_amount'] > 0): ?>
+                                    <tr><td style="text-align:right; padding: 4px;">Transit Insurance @<?= $format_rate($invoice['transit_insurance_rate']) ?>%</td><td style="text-align:right; padding: 4px;"><?= number_format($invoice['transit_insurance_amount'], 2) ?></td></tr>
+                                <?php endif; ?>
+                                <?php if (isset($invoice['round_off_amount']) && $invoice['round_off_amount'] != 0): ?>
+                                     <tr style="border-top: 1px solid #eee;"><td style="text-align:right; padding: 4px;"><strong>Round Off</strong></td><td style="text-align:right; padding: 4px;"><?= number_format($invoice['round_off_amount'], 2) ?></td></tr>
+                                <?php endif; ?>
+                                <tr style="font-weight:bold; background: #f2f2f2; border-top:2px solid #ccc; border-bottom: 2px solid #ccc;"><td style="text-align:right; padding: 8px;"><strong>FINAL AMOUNT</strong></td><td style="text-align:right; padding: 8px;"><strong><?= number_format($invoice['grand_total'], 2) ?></strong></td></tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+                
+                <div style="margin-top: 30px; padding-top: 15px; border-top: 2px solid #eee; font-size: 12px;">
+                    <table style="width: 100%;">
+                        <tr>
+                            <td style="width: 60%; vertical-align: top;">
+                                <strong>BANK DETAIL</strong><br>
+                                A/C NAME: JSPL STEEL<br>A/C NO.: 50200113154873<br>
+                                IFSC: HDFC0008981<br>BANK: HDFC BANK LTD<br>BRANCH: DHAIYA<br><br>
+                                <strong>Declaration:</strong><br>
+                                <small>We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</small>
+                            </td>
+                            <td style="width: 40%; text-align: right; vertical-align: top;">
+                                For <strong>JSPL STEEL</strong><br><br><br><br><br>Authorised Signatory
+                            </td>
+                        </tr>
+                    </table>
+                </div>
             </div>
         </div>
         <div class="no-print"><button onclick="window.print()" class="btn btn-success"><i class="fas fa-print"></i> Print</button> <a href="?" class="btn btn-primary"><i class="fas fa-plus"></i> New Invoice</a></div>
@@ -409,7 +482,7 @@ if ($action === 'save_invoice' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="d-flex justify-content-between align-items-center mb-4"><img src="Assets/logo.jpg" alt="Logo" style="max-height: 70px;"><h1 class="mb-0">TAX INVOICE</h1><div style="width: 100px; height: 100px; border: 1px solid #ccc; display:flex; align-items:center; justify-content:center; color: #6c757d;">QR Code</div></div>
                 <div class="row border-top pt-3 mb-4"><div class="col-md-4"><label for="irn_no" class="form-label">IRN:</label><input type="text" class="form-control" id="irn_no" name="irn_no"></div><div class="col-md-4"><label for="ack_no" class="form-label">Ack No.:</label><input type="text" class="form-control" id="ack_no" name="ack_no"></div><div class="col-md-4"><label for="ack_date" class="form-label">Ack Date:</label><input type="date" class="form-control" id="ack_date" name="ack_date"></div></div>
                 <div class="row border-top pt-3 mb-4">
-                    <div class="col-md-5"><h5 class="mb-3 text-primary">Sold By</h5><h6 class="fw-bold">JSPL STEEL</h6><p class="mb-1" style="font-size: 0.9rem;">Third Floor, Plot No-747, Khata No-11,<br>Dhanbad, Jharkhand - 828109<br><strong>GSTIN: 20AAVFJ8255B1ZD</strong></p></div>
+                    <div class="col-md-5"><h5 class="mb-3 text-primary">Sold By</h5><h6 class="fw-bold">JSPL STEEL</h6><p class="mb-1" style="font-size: 0.9rem;">Third Floor, Plot No-747, Khata No-11,<br>Dhanbad, Jharkhand - 828109<br><strong>GSTIN: 20AAVFJ8255B1ZD</strong><br><strong>State: JHARKHAND , Code: 20</strong></p></div>
                     <div class="col-md-7"><div class="row">
                         <div class="col-6 mb-2"><label for="invoice_no" class="form-label">Invoice No.</label><input type="text" class="form-control" id="invoice_no" name="invoice_no" required></div>
                         <div class="col-6 mb-2"><label for="invoice_date" class="form-label">Dated</label><input type="date" class="form-control" id="invoice_date" name="invoice_date" value="<?= date('Y-m-d') ?>" required></div>
@@ -429,14 +502,14 @@ if ($action === 'save_invoice' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         <h5 class="mb-3 text-primary">Biller (Bill To)</h5>
                         <div class="input-group"><select class="form-select" id="biller_id" name="biller_id" required><option value="">-- Choose Party --</option><?php $parties_result->data_seek(0); while($party = $parties_result->fetch_assoc()): ?><option value="<?= $party['id'] ?>"><?= htmlspecialchars($party['business_name']) . ' (' . htmlspecialchars($party['unique_id']) . ')' ?></option><?php endwhile; ?></select><button class="btn btn-outline-primary add-party-btn" type="button" data-bs-toggle="modal" data-bs-target="#partyModal"><i class="fas fa-plus"></i></button></div>
                         <textarea class="form-control mt-2" id="biller_address" placeholder="Address" readonly rows="2"></textarea>
-                        <div class="input-group mt-2"><input type="text" class="form-control" id="biller_gst" placeholder="GSTIN" readonly><input type="text" class="form-control" id="biller_state" placeholder="State" readonly></div>
+                        <div class="input-group mt-2"><input type="text" class="form-control" id="biller_gst" placeholder="GSTIN" readonly><input type="text" class="form-control" id="biller_state" placeholder="State & Code" readonly></div>
                     </div>
                     <div class="col-md-6 ps-4">
                         <h5 class="mb-3 text-primary">Consignee (Ship To)</h5>
                         <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="same_as_biller" name="same_as_biller"><label class="form-check-label" for="same_as_biller">Same as Biller</label></div>
                         <div class="input-group"><select class="form-select" id="consignee_id" name="consignee_id" required><option value="">-- Choose Party --</option><?php $parties_result->data_seek(0); while($party = $parties_result->fetch_assoc()): ?><option value="<?= $party['id'] ?>"><?= htmlspecialchars($party['business_name']) . ' (' . htmlspecialchars($party['unique_id']) . ')' ?></option><?php endwhile; ?></select><button class="btn btn-outline-primary add-party-btn" type="button" data-bs-toggle="modal" data-bs-target="#partyModal"><i class="fas fa-plus"></i></button></div>
                         <textarea class="form-control mt-2" id="consignee_address" placeholder="Address" readonly rows="2"></textarea>
-                        <div class="input-group mt-2"><input type="text" class="form-control" id="consignee_gst" placeholder="GSTIN" readonly><input type="text" class="form-control" id="consignee_state" placeholder="State" readonly></div>
+                        <div class="input-group mt-2"><input type="text" class="form-control" id="consignee_gst" placeholder="GSTIN" readonly><input type="text" class="form-control" id="consignee_state" placeholder="State & Code" readonly></div>
                     </div>
                 </div>
                 <div class="position-relative mb-3"><div class="input-group"><span class="input-group-text"><i class="fas fa-search"></i></span><input type="text" class="form-control" id="good-search" placeholder="Search for products..."></div><div id="search-results-container" class="search-results" style="display:none;"></div></div>
@@ -548,7 +621,12 @@ $(document).ready(function() {
                 if(data) {
                     $('#' + type + '_address').val(data.address);
                     $('#' + type + '_gst').val(data.gst_uin);
-                    $('#' + type + '_state').val(data.state);
+                    // ## CHANGE 5: Combined state and gst_code into one field for display.
+                    if (data.state && data.gst_code) {
+                        $('#' + type + '_state').val(data.state + ' (' + data.gst_code + ')');
+                    } else {
+                        $('#' + type + '_state').val(data.state);
+                    }
                 }
             }
         });
@@ -607,21 +685,13 @@ $(document).ready(function() {
     $(document).on('click', '.search-item', function() {
         itemCounter++;
         const item = $(this).data();
-        const rowHtml = `<tr class="item-row"><td>${itemCounter}</td><td>${item.name}<input type="hidden" name="items[${itemCounter}][product_id]" value="${item.id}"><input type="hidden" name="items[${itemCounter}][product_name]" value="${item.name}"></td><td>${item.hsn}<input type="hidden" name="items[${itemCounter}][hsn_sac]" value="${item.hsn}"></td><td><input type="number" class="form-control form-control-sm quantity" name="items[${itemCounter}][quantity]" value="1" min="0.001" step="0.001"></td><td>${item.unit}<input type="hidden" name="items[${itemCounter}][unit]" value="${item.unit}"></td><td><div class="input-group"><input type="number" class="form-control form-control-sm rate" name="items[${itemCounter}][rate]" value="${parseFloat(item.rate).toFixed(2)}" step="0.01"><button class="btn btn-outline-secondary btn-sm toggle-rate-lock" type="button" title="Alter Rate"><i class="fas fa-pencil-alt"></i></button></div></td><td><input type="text" class="form-control form-control-sm amount" name="items[${itemCounter}][amount]" readonly></td><td><button type="button" class="btn btn-danger btn-sm remove-item"><i class="fas fa-trash"></i></button></td></tr>`;
+        const rowHtml = `<tr class="item-row"><td>${itemCounter}</td><td>${item.name}<input type="hidden" name="items[${itemCounter}][product_id]" value="${item.id}"><input type="hidden" name="items[${itemCounter}][product_name]" value="${item.name}"></td><td>${item.hsn}<input type="hidden" name="items[${itemCounter}][hsn_sac]" value="${item.hsn}"></td><td><input type="number" class="form-control form-control-sm quantity" name="items[${itemCounter}][quantity]" value="1" min="0.001" step="0.001"></td><td>${item.unit}<input type="hidden" name="items[${itemCounter}][unit]" value="${item.unit}"></td><td><input type="number" class="form-control form-control-sm rate" name="items[${itemCounter}][rate]" value="${parseFloat(item.rate).toFixed(2)}" step="0.01"></td><td><input type="text" class="form-control form-control-sm amount" name="items[${itemCounter}][amount]" readonly></td><td><button type="button" class="btn btn-danger btn-sm remove-item"><i class="fas fa-trash"></i></button></td></tr>`;
         $('#item-rows').append(rowHtml);
         updateCalculations();
         $('#good-search').val('');
         $('#search-results-container').hide();
     });
     
-    $('#items-table').on('click', '.toggle-rate-lock', function() {
-        const rateInput = $(this).closest('.input-group').find('.rate');
-        rateInput.prop('readonly', !rateInput.prop('readonly'));
-        $(this).toggleClass('btn-outline-secondary btn-success');
-        $(this).find('i').toggleClass('fa-pencil-alt fa-unlock');
-        if (!rateInput.prop('readonly')) rateInput.focus();
-    });
-
     $('#items-table').on('click', '.remove-item', function() { $(this).closest('tr').remove(); updateCalculations(); });
     $('#items-table').on('input', '.quantity, .rate', updateCalculations);
     $('.tax-checkbox').on('change', updateCalculations);
@@ -675,80 +745,91 @@ $(document).ready(function() {
         const formatQty = (qty) => (qty % 1 !== 0) ? parseFloat(qty).toFixed(3) : parseInt(qty);
 
         let itemsHtml = '';
-        let totalQty = 0;
+        let sno = 1;
         $('.item-row').each(function() {
             const qty = parseFloat($(this).find('.quantity').val()) || 0;
-            totalQty += qty;
             itemsHtml += `<tr class="item">
+                            <td style="text-align:center;">${sno++}</td>
                             <td>${$(this).find('input[name*="[product_name]"]').val()}</td>
                             <td>${$(this).find('input[name*="[hsn_sac]"]').val()}</td>
                             <td style="text-align:right;">${formatQty(qty)}</td>
-                            <td style="text-align:right;">${$(this).find('input[name*="[unit]"]').val()}</td>
+                            <td style="text-align:center;">${$(this).find('input[name*="[unit]"]').val()}</td>
                             <td style="text-align:right;">${parseFloat($(this).find('.rate').val()).toFixed(2)}</td>
                             <td style="text-align:right;">${parseFloat($(this).find('.amount').val()).toFixed(2)}</td>
                         </tr>`;
         });
         
-        // MODIFICATION: Adjusted colspans for totals
-        let totalsHtml = `
-            <tr style="font-weight:bold; border-top: 2px solid #ccc;">
-                <td colspan="3" rowspan="10" style="vertical-align: bottom;"><strong>Amount (in words):</strong><br>${numberToWordsJS(parseFloat($('#final-amount-rounded').text()))} Only</td>
-                <td colspan="2" style="text-align:right;">Sub Total</td>
-                <td style="text-align:right;">${$('#sub-total').text()}</td>
-            </tr>`;
-
+        let totalsHtml = '';
         $('.tax-checkbox:checked').each(function() {
             const label = $(this).data('label');
             const amount = parseFloat($('#sub-total').text()) * parseFloat($(this).data('rate'));
-            totalsHtml += `<tr><td colspan="2" style="text-align:right;">${label}</td><td style="text-align:right;">${amount.toFixed(2)}</td></tr>`;
+            totalsHtml += `<tr><td style="text-align:right; padding: 4px;">${label}</td><td style="text-align:right; padding: 4px;">${amount.toFixed(2)}</td></tr>`;
         });
         
-        const grandTotalUnrounded = parseFloat($('#grand-total-unrounded').text());
         const roundOff = parseFloat($('#round-off').text());
-        const finalAmountRounded = parseFloat($('#final-amount-rounded').text());
-
-        totalsHtml += `<tr style="border-top: 1px solid #ccc;"><td colspan="2" style="text-align:right;">Grand Total</td><td style="text-align:right;">${grandTotalUnrounded.toFixed(2)}</td></tr>`;
         if (roundOff.toFixed(2) != 0.00 && roundOff.toFixed(2) != -0.00) {
-            totalsHtml += `<tr><td colspan="2" style="text-align:right;"><strong>Round Off</strong></td><td style="text-align:right;">${roundOff.toFixed(2)}</td></tr>`;
+            totalsHtml += `<tr style="border-top: 1px solid #eee;"><td style="text-align:right; padding: 4px;"><strong>Round Off</strong></td><td style="text-align:right; padding: 4px;">${roundOff.toFixed(2)}</td></tr>`;
         }
-        totalsHtml += `<tr style="font-weight:bold; background: #f2f2f2; border-top:2px solid #ccc;"><td colspan="2" style="text-align:right;"><strong>FINAL AMOUNT</strong></td><td style="text-align:right;"><strong>${finalAmountRounded.toFixed(2)}</strong></td></tr>`;
         
-        const loadingFromText = $('#other_fer_loading_from').val() ? `<strong>Loading From:</strong> ${$('#other_fer_loading_from').val()}` : '';
-
         const previewHtml = `
             <div class="invoice-box">
-                <table cellpadding="0" cellspacing="0">
-                    <tr><td colspan="3" style="padding-bottom: 20px; vertical-align: top;"><img src="Assets/logo.jpg" style="max-width: 150px;" alt="Logo"></td><td colspan="3" style="padding-bottom: 20px; text-align: right;"></td></tr>
-                    <tr class="information">
-                        <td colspan="3" style="vertical-align: top;"><strong>Sold By: JSPL STEEL</strong><br>Third Floor, Plot No-747, Khata No-11,<br>Dhanbad, Jharkhand - 828109<br><strong>GSTIN: 20AAVFJ8255B1ZD</strong></td>
-                        <td colspan="3" style="vertical-align: top; text-align: right;">
-                             <table style="margin-left: auto; margin-right: 0; text-align: left;">
-                                <tr><td style="text-align: right; padding-right: 10px;"><strong>Invoice No:</strong></td><td>${$('#invoice_no').val()}</td></tr>
-                                <tr><td style="text-align: right; padding-right: 10px;"><strong>Dated:</strong></td><td>${formatDate($('#invoice_date').val())}</td></tr>
-                                <tr><td style="text-align: right; padding-right: 10px;"><strong>E-Way Bill No:</strong></td><td>${$('#eway_bill_no').val()}</td></tr>
-                                ${loadingFromText ? `<tr><td style="text-align: right; padding-right: 10px;"><strong>Loading From:</strong></td><td>${$('#other_fer_loading_from').val()}</td></tr>` : ''}
-                            </table>
-                        </td>
+                <table style="width:100%; margin-bottom: 20px;">
+                    <tr>
+                        <td style="width:25%; vertical-align: top;"><img src="Assets/logo.jpg" style="max-width: 150px;" alt="Logo"></td>
+                        
+                        <td style="width:25%; text-align: right; vertical-align: top;"></td>
                     </tr>
-                    <tr class="information" style="border-top: 1px solid #eee; border-bottom: 1px solid #eee;">
-                        <td colspan="3"><strong>IRN:</strong> ${$('#irn_no').val()}</td>
-                        <td colspan="3" style="text-align: right;">
-                             <table style="margin-left: auto; margin-right: 0; text-align: left;">
-                                <tr><td style="text-align: right; padding-right: 10px;"><strong>Ack. No:</strong></td><td>${$('#ack_no').val()}</td></tr>
-                                <tr><td style="text-align: right; padding-right: 10px;"><strong>Ack. Date:</strong></td><td>${formatDate($('#ack_date').val())}</td></tr>
-                            </table>
-                        </td>
-                    </tr>
-                    <tr class="heading"><td colspan="3">Buyer (Bill To)</td><td colspan="3">Consignee (Ship To)</td></tr>
-                    <tr class="details">
-                        <td colspan="3"><strong>${$('#biller_id option:selected').text()}</strong><br>${$('#biller_address').val().replace(/\n/g, '<br>')}<br><strong>GSTIN:</strong> ${$('#biller_gst').val()}</td>
-                        <td colspan="3"><strong>${$('#consignee_id option:selected').text()}</strong><br>${$('#consignee_address').val().replace(/\n/g, '<br>')}<br><strong>GSTIN:</strong> ${$('#consignee_gst').val()}</td>
-                    </tr>
-                    <tr class="heading"><th>Description</th><th>HSN/SAC</th><th style="text-align:right;">Qty</th><th style="text-align:right;">Unit</th><th style="text-align:right;">Rate</th><th style="text-align:right;">Amount</th></tr>
-                    ${itemsHtml}
-                    ${totalsHtml}
                 </table>
-                 <div style="margin-top: 30px; padding-top: 15px; border-top: 2px solid #eee; font-size: 13px;"><table style="width: 100%;"><tr><td style="width: 60%; vertical-align: top;"><strong>BANK DETAIL</strong><br>A/C NAME: JSPL STEEL<br>A/C NO.: 50200113154873<br>IFSC: HDFC0008981<br>BANK: HDFC BANK LTD<br>BRANCH: DHAIYA<br><br><strong>Declaration:</strong><br><small>We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</small></td><td style="width: 40%; text-align: right; vertical-align: top;">For <strong>JSPL STEEL</strong><br><br><br><br><br>Authorised Signatory</td></tr></table></div>
+                <table style="width:100%; margin-bottom: 15px;">
+                    <tr>
+                        <td style="width: 50%; vertical-align: top; border: 1px solid #eee; padding: 15px; border-radius: 5px;">
+                            <strong>Sold By: JSPL STEEL</strong><br>Third Floor, Plot No-747, Khata No-11,<br>Dhanbad, Jharkhand - 828109<br><strong>GSTIN: 20AAVFJ8255B1ZD</strong> <br><strong>State: JHARKHAND, Code: 20</strong>
+                        </td>
+                        <td style="width: 50%; vertical-align: top; border: 1px solid #eee; padding: 15px; border-radius: 5px;">
+                            <table style="width:100%;">
+                                <tr><td style="padding: 2px;"><strong>Invoice No:</strong></td><td style="padding: 2px;">${$('#invoice_no').val()}</td></tr>
+                                <tr><td style="padding: 2px;"><strong>Dated:</strong></td><td style="padding: 2px;">${formatDate($('#invoice_date').val())}</td></tr>
+                                <tr><td style="padding: 2px;"><strong>E-Way Bill No:</strong></td><td style="padding: 2px;">${$('#eway_bill_no').val()}</td></tr>
+                                ${$('#other_fer_loading_from').val() ? `<tr><td style="padding: 2px;"><strong>Loading From:</strong></td><td style="padding: 2px;">${$('#other_fer_loading_from').val()}</td></tr>` : ''}
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+                <table style="width:100%; margin-bottom: 15px;">
+                     <tr>
+                        <td style="width: 50%; vertical-align: top; border: 1px solid #eee; padding: 15px; border-radius: 5px;">
+                            <strong>Buyer (Bill To):</strong><br><strong>${$('#biller_id option:selected').text()}</strong><br>${$('#biller_address').val().replace(/\n/g, '<br>')}<br><strong>GSTIN:</strong> ${$('#biller_gst').val()}<br><strong>State:</strong> ${$('#biller_state').val()}
+                        </td>
+                        <td style="width: 50%; vertical-align: top; border: 1px solid #eee; padding: 15px; border-radius: 5px;">
+                            <strong>Consignee (Ship To):</strong><br><strong>${$('#consignee_id option:selected').text()}</strong><br>${$('#consignee_address').val().replace(/\n/g, '<br>')}<br><strong>GSTIN:</strong> ${$('#consignee_gst').val()}<br><strong>State:</strong> ${$('#consignee_state').val()}
+                        </td>
+                    </tr>
+                </table>
+                <table style="width:100%; margin-bottom: 20px; border: 1px solid #eee; border-radius: 5px; border-collapse: separate; border-spacing: 0;">
+                    <tr style="background-color: #f8f8f8;"><th style="padding: 8px;">Buyer's Order No</th><th style="padding: 8px;">Order Date</th><th style="padding: 8px;">Dispatch Through</th><th style="padding: 8px;">Motor Vehicle No</th></tr>
+                    <tr><td style="padding: 8px; border-top: 1px solid #eee;">${$('#buyers_order_no').val() || 'N/A'}</td><td style="padding: 8px; border-top: 1px solid #eee;">${formatDate($('#buyers_order_date').val())}</td><td style="padding: 8px; border-top: 1px solid #eee;">${$('#dispatch_through').val() || 'N/A'}</td><td style="padding: 8px; border-top: 1px solid #eee;">${$('#motor_vehicle_no').val() || 'N/A'}</td></tr>
+                </table>
+                <table class="items-table" style="width: 100%; line-height: inherit; text-align: left; border-collapse: collapse;">
+                    <tr class="heading"><th style="text-align:center; width: 40px;">#</th><th>Description</th><th>HSN/SAC</th><th style="text-align:right;">Qty</th><th style="text-align:center;">Unit</th><th style="text-align:right;">Rate</th><th style="text-align:right;">Amount</th></tr>
+                    ${itemsHtml}
+                </table>
+                <table style="width:100%; margin-top: 20px;">
+                    <tr>
+                        <td style="width: 60%; vertical-align: top;"><strong>Amount (in words):</strong><br><span style="font-weight: bold;">INR ${numberToWordsJS(parseFloat($('#final-amount-rounded').text()))} Only</span></td>
+                        <td style="width: 40%; vertical-align: top;">
+                            <table style="width:100%;">
+                                <tr><td style="text-align:right; padding: 4px;">Sub Total</td><td style="text-align:right; width: 120px; padding: 4px;">${$('#sub-total').text()}</td></tr>
+                                ${totalsHtml}
+                                <tr style="font-weight:bold; background: #f2f2f2; border-top:2px solid #ccc; border-bottom: 2px solid #ccc;"><td style="text-align:right; padding: 8px;"><strong>FINAL AMOUNT</strong></td><td style="text-align:right; padding: 8px;"><strong>${$('#final-amount-rounded').text()}</strong></td></tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+                <div style="margin-top: 30px; padding-top: 15px; border-top: 2px solid #eee; font-size: 12px;">
+                    <table style="width: 100%;">
+                        <tr><td style="width: 60%; vertical-align: top;"><strong>BANK DETAIL</strong><br>A/C NAME: JSPL STEEL<br>A/C NO.: 50200113154873<br>IFSC: HDFC0008981<br>BANK: HDFC BANK LTD<br>BRANCH: DHAIYA<br><br><strong>Declaration:</strong><br><small>We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</small></td><td style="width: 40%; text-align: right; vertical-align: top;">For <strong>JSPL STEEL</strong><br><br><br><br><br>Authorised Signatory</td></tr>
+                    </table>
+                </div>
             </div>`;
 
         $('#preview-modal-body').html(previewHtml);
@@ -808,6 +889,5 @@ function numberToWordsJS(number) {
     return finalString;
 }
 </script>
-
 </body>
 </html>

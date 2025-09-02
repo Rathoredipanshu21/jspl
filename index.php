@@ -1,91 +1,126 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>JSPL -Admin Panel</title>
+    <title>JSPL - Admin Panel</title>
     
-    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <!-- Google Fonts for a clean, modern look -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-    <link rel="icon" type="image/png" href="Assets\logo.jpg" />
+    <!-- Favicon for the site -->
+    <link rel="icon" type="image/png" href="Assets/logo.jpg" onerror="this.onerror=null;this.href='https://placehold.co/32x32/2c3e50/ffffff?text=A';" />
+    
     <style>
+        :root {
+            --primary-color: #3498db;
+            --sidebar-bg: #2c3a47;
+            --sidebar-header-bg: #1e272e;
+            --sidebar-text: #bdc3c7;
+            --sidebar-hover-bg: #34495e;
+            --sidebar-active-bg: #2980b9;
+            --main-bg: #eef2f5;
+            --navbar-bg: #ffffff;
+            --text-color: #333;
+            --shadow-color: rgba(0,0,0,0.08);
+        }
+
+        /* Basic Reset */
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
         }
         body {
-            font-family: 'Source Sans Pro', sans-serif;
-            background-color: #fdfbf5;
-            overflow: hidden;
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--main-bg);
+            overflow: hidden; /* Prevent scrolling on the main body */
+            color: var(--text-color);
         }
         .container {
             display: flex;
             flex-direction: column;
             height: 100vh;
         }
+        
+        /* Navbar Styling */
         .navbar {
-            background: #2c3e50;
-            padding: 10px 20px;
-            color: #fff;
+            background: var(--navbar-bg);
+            padding: 10px 30px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 12px var(--shadow-color);
             flex-shrink: 0;
+            z-index: 10;
+        }
+        .navbar-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
         }
         .navbar-icons {
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: 25px;
             font-size: 20px;
         }
         .navbar-icons i {
             cursor: pointer;
             transition: color 0.3s ease;
+            color: #555;
         }
         .navbar-icons i:hover {
-            color: #1abc9c;
+            color: var(--primary-color);
         }
+        
+        /* Main Content Area */
         .main {
             display: flex;
             flex: 1;
             overflow: hidden;
         }
+        
+        /* Sidebar Styling */
         .sidebar {
             width: 260px;
-            background: #1f2d3d;
-            color: #fff;
+            background: var(--sidebar-bg);
+            color: var(--sidebar-text);
             display: flex;
             flex-direction: column;
-            transition: width 0.3s ease, min-width 0.3s ease;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            transition: width 0.3s ease;
+            box-shadow: 3px 0 15px rgba(0,0,0,0.1);
             flex-shrink: 0;
             overflow-y: auto;
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
         .sidebar::-webkit-scrollbar { display: none; }
+        
         .sidebar.collapsed {
-            width: 70px;
-            min-width: 70px;
+            width: 80px;
         }
+        
         .sidebar-header {
             text-align: center;
             font-size: 24px;
             font-weight: 600;
-            padding: 40px;
-            background: #17212b;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding: 25px;
+            background: var(--sidebar-header-bg);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            color: #fff;
         }
         .sidebar.collapsed .sidebar-header {
             font-size: 0;
-            padding: 20px 0;
+            padding: 22px 0;
         }
+        
         .sidebar-menu {
             list-style: none;
             padding: 10px 0;
@@ -95,287 +130,231 @@
             padding: 15px 25px;
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 20px;
             cursor: pointer;
             transition: background 0.3s, color 0.3s;
-            color: #eaeaea;
+            color: var(--sidebar-text);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             position: relative;
         }
         .sidebar.collapsed .sidebar-menu li {
-            padding: 15px 20px;
+            padding: 15px 25px;
             justify-content: center;
         }
-        .sidebar-menu li:hover:not(.active) {
-            background: #34495e;
-            color: #fff;
+        .sidebar-menu li:hover {
+            background: var(--sidebar-hover-bg);
+            color: #ffffff;
         }
         .sidebar-menu li.active {
-            background-color: #34495e;
+            background: var(--sidebar-active-bg);
             color: #ffffff;
-            border-left: 4px solid #1abc9c;
-            padding-left: 21px;
         }
-        .sidebar.collapsed .sidebar-menu li.active {
-            padding-left: 20px;
-            border-left: none;
+        .sidebar-menu li.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 4px;
+            background-color: var(--primary-color);
+        }
+        .sidebar.collapsed .sidebar-menu li.active::before {
+            width: 0;
         }
         .sidebar-menu i {
             width: 25px;
             text-align: center;
-            font-size: 16px;
-            color: #95a5a6;
+            font-size: 18px;
             transition: color 0.3s ease;
         }
-        .sidebar-menu li:hover i,
-        .sidebar-menu li.active i {
-            color: #1abc9c;
+        .sidebar-menu li:hover i, .sidebar-menu li.active i {
+            color: var(--primary-color);
         }
-        .sidebar.collapsed .sidebar-menu li span,
-        .sidebar.collapsed .dropdown-content {
+        .sidebar.collapsed .sidebar-menu li span {
             display: none;
         }
-        .dropdown {
-            flex-direction: column;
+        
+        /* Logout Link Styling */
+        .logout-container {
+            padding: 20px;
+            margin-top: auto;
         }
-        .dropdown > div {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            width: 100%;
-        }
-        .dropdown .dropdown-content {
-            display: none;
-            flex-direction: column;
-            padding-left: 45px;
-            background-color: #2d3e4f;
-            border-top: 1px solid rgba(255,255,255,0.03);
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out, padding-top 0.3s ease-out, padding-bottom 0.3s ease-out;
-        }
-        .dropdown.open .dropdown-content {
-            display: flex;
-            max-height: 500px;
-            padding-top: 5px;
-            padding-bottom: 5px;
-        }
-        .dropdown-content li {
-            padding: 10px 0;
-            font-size: 14px;
-            color: #eee;
-            cursor: pointer;
-            gap: 10px;
-            border-left: 1px dotted rgba(255,255,255,0.3);
-            padding-left: 15px;
-        }
-        .sidebar.collapsed .dropdown-content li {
-            padding-left: 10px;
-            border-left: none;
-        }
-        .dropdown-content li:hover {
-            color: #1abc9c;
-        }
-        .dropdown-content li.active {
-            background-color: #3f5870;
-            color: #1abc9c;
-        }
-        .dropdown .fa-angle-down {
-            transition: transform 0.3s ease;
-        }
-        .dropdown.open .fa-angle-down {
-            transform: rotate(180deg);
-        }
-        .content {
-            flex: 1;
-            background: #fdfbf5;
-            overflow-y: auto;
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        .content::-webkit-scrollbar { display: none; }
-        .content iframe {
-            border: none;
-            width: 100%;
-            height: 100%;
-        }
-        .toggle-btn {
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: #fff;
-            transition: color 0.3s ease;
-        }
-        .toggle-btn:hover { color: #1abc9c; }
-        .sidebar-menu a {
+        .logout-link {
             background-color: #e74c3c;
             color: #fff;
-            padding: 8px 16px;
-            border-radius: 6px;
-            margin: 10px auto;
-            font-size: 15px;
+            padding: 12px 16px;
+            border-radius: 8px;
             text-decoration: none;
             transition: background 0.3s ease, transform 0.2s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 80%;
+            gap: 10px;
             white-space: nowrap;
             overflow: hidden;
-            text-overflow: ellipsis;
         }
-        .sidebar-menu a:hover {
+        .logout-link:hover {
             background-color: #c0392b;
             transform: translateY(-2px);
         }
-        .sidebar.collapsed .sidebar-menu a {
+        .sidebar.collapsed .logout-link span {
+            display: none;
+        }
+        .sidebar.collapsed .logout-link {
             width: 40px;
             height: 40px;
             border-radius: 50%;
             padding: 0;
-            justify-content: center;
-            align-items: center;
         }
-        .sidebar.collapsed .sidebar-menu a span {
-            display: none;
+
+        /* IFrame Content Area */
+        .content {
+            flex: 1;
+            background: var(--main-bg);
+            overflow-y: auto;
+            padding: 20px;
         }
-        .sidebar-menu a i {
-            margin-right: 8px;
+        .content iframe {
+            border: none;
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px var(--shadow-color);
         }
-        .sidebar.collapsed .sidebar-menu a i {
-            margin-right: 0;
-            font-size: 20px;
-            color: #fff;
+        
+        /* Toggle Button */
+        .toggle-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #333;
+            transition: color 0.3s ease, transform 0.3s ease;
+        }
+        .toggle-btn:hover { 
+            color: var(--primary-color); 
+            transform: rotate(90deg);
         }
     </style>
 </head>
 <body>
     <div class="container">
-    <div class="navbar">
-        <button class="toggle-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
-        <div class="navbar-icons">
-            <i class="fas fa-bell"></i>
-            <i class="fas fa-envelope"></i>
-            <i class="fas fa-user-circle"></i>
+        <div class="navbar">
+            <div class="navbar-left">
+                <button class="toggle-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+                <!-- <span class="font-semibold">Welcome, <?php echo $username; ?>!</span> -->
+            </div>
+            <div class="navbar-icons">
+                <i class="fas fa-plus-circle" title="Quick Add" onclick="loadPage(document.querySelector('#newOrderMenuItem'), 'new_orders.php')"></i>
+                <i class="fas fa-bell"></i>
+                <i class="fas fa-envelope"></i>
+                <i class="fas fa-user-circle"></i>
+                <i id="fullscreen-btn" class="fas fa-expand" onclick="toggleFullScreen()" title="Toggle Fullscreen"></i>
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="sidebar" id="sidebar">
+                <div class="sidebar-header">JSPL Trading</div>
+                <ul class="sidebar-menu" id="sidebarMenu">
+                    <li class="active" onclick="loadPage(this, 'Bill_create.php')">
+                        <i class="fas fa-file-invoice-dollar"></i> <span>Billing</span>
+                    </li>
+                    <li onclick="loadPage(this, 'add_party.php')">
+                        <i class="fas fa-users"></i> <span>Parties</span>
+                    </li>
+                    <li onclick="loadPage(this, 'add_goods.php')">
+                        <i class="fas fa-boxes-stacked"></i> <span>Stock Management</span>
+                    </li>
+                    <li onclick="loadPage(this, 'invoices.php')">
+                        <i class="fas fa-receipt"></i> <span>Invoices</span>
+                    </li>
+                    <li id="newOrderMenuItem" onclick="loadPage(this, 'new_orders.php')">
+                        <i class="fas fa-truck-fast"></i> <span>New Orders</span>
+                    </li>
+                     <li onclick="loadPage(this, 'admin_approval.php')">
+                        <i class="fas fa-user-check"></i> <span>Approvals</span>
+                    </li>
+                     <li onclick="loadPage(this, 'party_report.php')">
+                        <i class="fas fa-user-check"></i> <span>Party report</span>
+                    </li>
+                </ul>
+                <div class="logout-container">
+                    <a href="logout.php" class="logout-link">
+                        <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
+                    </a>
+                </div>
+            </div>
+            <div class="content">
+                <iframe id="contentFrame" src="Bill_create.php" title="Admin Content"></iframe>
+            </div>
         </div>
     </div>
+    <script>
+        /**
+         * Toggles the 'collapsed' class on the sidebar element to expand/collapse it.
+         */
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('collapsed');
+        }
 
-    <div class="main">
-        <div class="sidebar" id="sidebar">
-            <div class="sidebar-header">Admin Panel</div>
-            <ul class="sidebar-menu" id="sidebarMenu">
-                <!-- <li onclick="loadPage(this, 'dashboard.php')"><i class="fas fa-home"></i> <span>Dashboard</span></li> -->
-
-                <!-- <li class="dropdown">
-                    <div onclick="toggleDropdown(this)">
-                        <i class="fas fa-user-graduate"></i> <span>Student Management</span> <i class="fas fa-angle-down"></i>
-                    </div>
-                    <ul class="dropdown-content">
-                        <li onclick="loadPage(this, '../Center/admission_form.php')"><i class="fas fa-file-invoice"></i> <span>Take Admission</span></li>
-                        <li onclick="loadPage(this, 'All_students.php')"><i class="fas fa-users-viewfinder"></i> <span>View All Students</span></li> 
-                    </ul>
-                </li>
-
-                <li class="dropdown">
-                    <div onclick="toggleDropdown(this)">
-                        <i class="fas fa-university"></i> <span>Universities Details</span> <i class="fas fa-angle-down"></i>
-                    </div>
-                    <ul class="dropdown-content">
-                        <li onclick="loadPage(this, 'university_form.php')"><i class="fas fa-plus-circle"></i> <span>Add Universities</span></li>
-                        <li onclick="loadPage(this, 'view_universities.php')"><i class="fas fa-list-alt"></i> <span>View All Universities</span></li>
-                        <li onclick="loadPage(this, 'ClgFee/index.php')"><i class="fas fa-handshake"></i> <span>Payment to college</span></li>
-                        <li onclick="loadPage(this, 'ClgFee/fee_management.php')"><i class="fas fa-handshake"></i> <span>College Payment Details</span></li>
-                    </ul>
-                </li>
+        /**
+         * Loads a new page into the iframe and updates the active state of the sidebar menu.
+         * @param {HTMLElement} el - The list item element that was clicked.
+         * @param {string} page - The URL of the page to load into the iframe.
+         */
+        function loadPage(el, page) {
+            // Set the source of the iframe to the new page
+            document.getElementById('contentFrame').src = page;
             
-                <li class="dropdown">
-                    <div onclick="toggleDropdown(this)">
-                        <i class="fas fa-dollar-sign"></i> <span>Fee Management</span>
-                        <i class="fas fa-angle-down"></i>
-                    </div>
-                   <ul class="dropdown-content">
-                        <li onclick="loadPage(this, 'reg_fee_controller.php')"><i class="fas fa-cash-register"></i> <span>Registration Fee Settings</span></li>
-                        <li onclick="loadPage(this, 'admin_fee_control.php')"><i class="fas fa-file-invoice"></i> <span>Admission & Late Fee Configuration</span></li>
-                        <li onclick="loadPage(this, 'fee_management.php')"><i class="fas fa-graduation-cap"></i> <span>Course Fee Management</span></li>
-</ul>
+            // Remove 'active' class from all menu items
+            const menuItems = document.querySelectorAll('#sidebarMenu li');
+            menuItems.forEach(item => item.classList.remove('active'));
+            
+            // Add 'active' class to the clicked menu item
+            if(el) {
+                el.classList.add('active');
+            }
+        }
 
-                </li>
-                <li class="dropdown">
-                    <div onclick="toggleDropdown(this)">
-                        <i class="fas fa-dollar-sign"></i> <span>Commission Dashboard</span>
-                        <i class="fas fa-angle-down"></i>
-                    </div>
-                   <ul class="dropdown-content">
-                        <li   li onclick="loadPage(this, 'Commission/admin_commission_dashboard.php')"><i class="fas fa-cash-register"></i> <span>Commission Dashboard</span></li>
-                
-</ul>
-
-                </li>
-
-                <li class="dropdown">
-                    <div onclick="toggleDropdown(this)">
-                        <i class="fas fa-dollar-sign"></i> <span>Franchise Management</span>
-                        <i class="fas fa-angle-down"></i>
-                    </div>
-                    <ul class="dropdown-content">
-                        <li onclick="loadPage(this, 'franchise_requests.php')"><i class="fas fa-handshake"></i> <span>Franchise Requests</span></li>
-                        <li onclick="loadPage(this, 'Center/create_franchise_login_form.php')"><i class="fas fa-handshake"></i> <span>Create Franchise Login </span></li>
-                      
-
-                    </ul>
-                </li> -->
-
-             <li onclick="loadPage(this, 'Bill_create.php')">
-        <i class="fas fa-file-invoice-dollar"></i> <span>Generate Invoice</span>
-    </li>
-    <li onclick="loadPage(this, 'add_party.php')">
-        <i class="fas fa-users"></i> <span>Manage Clients</span>
-    </li>
-    <li onclick="loadPage(this, 'add_goods.php')">
-        <i class="fas fa-boxes"></i> <span>Product Catalog</span>
-    </li>
-    <li onclick="loadPage(this, 'invoices.php')">
-        <i class="fas fa-receipt"></i> <span>View Invoices</span>
-    </li>
-    <li onclick="loadPage(this, 'admin_approval.php')">
-        <i class="fas fa-user-check"></i> <span>Approval Queue</span>
-    </li>
-   
-    <li onclick="loadPage(this, 'new_orders.php')">
-        <i class="fas fa-user-check"></i> <span>New Orders</span>
-    </li>
-    <li>
-        <a href="logout.php" class="logout-link">
-            <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
-        </a>
-    </li>
-            </ul>
-        </div>
-        <div class="content">
-            <iframe id="contentFrame" src="Bill_create.php"></iframe>
-        </div>
-    </div>
-</div>
-<script>
-    function toggleSidebar() {
-        const sidebar = document.getElementById('sidebar');
-        sidebar.classList.toggle('collapsed');
-    }
-    function toggleDropdown(element) {
-        const parentLi = element.closest('.dropdown');
-        if (parentLi) {
-            parentLi.classList.toggle('open');
-        } 
-    }
-    function loadPage(el, page) {
-        document.getElementById('contentFrame').src = page;
-        const menuItems = document.querySelectorAll('#sidebarMenu li');
-        menuItems.forEach(item => item.classList.remove('active'));
-        el.classList.add('active');
-    }
-</script>
+        /**
+         * Toggles the entire page view between fullscreen and normal mode.
+         */
+        function toggleFullScreen() {
+            const btn = document.getElementById('fullscreen-btn');
+            if (!document.fullscreenElement && !document.mozFullScreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+                // Enter fullscreen mode
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen();
+                } else if (document.documentElement.msRequestFullscreen) {
+                    document.documentElement.msRequestFullscreen();
+                } else if (document.documentElement.mozRequestFullScreen) {
+                    document.documentElement.mozRequestFullScreen();
+                } else if (document.documentElement.webkitRequestFullscreen) {
+                    document.documentElement.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+                }
+                btn.classList.remove('fa-expand');
+                btn.classList.add('fa-compress');
+            } else {
+                // Exit fullscreen mode
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                }
+                btn.classList.remove('fa-compress');
+                btn.classList.add('fa-expand');
+            }
+        }
+    </script>
 </body>
 </html>
